@@ -1,0 +1,558 @@
+==============================================================================
+Accelération de calculs sur multi-CPU           (Fabrice Harrouet, module CRS)
+==============================================================================
+
+Il s'agit d'une série d'exercices en rapport avec l'utilisation de threads
+pour exploiter les multiples unités de calcul des machines informatiques.
+Au cours de cette séance nous nous mettrons en évidence quelques écueils qui
+limitent les performances et envisagerons des démarches pour les éviter.
+
+Chaque programme est volontairement très simple afin de se focaliser sur la
+découverte des services proposés sans être distrait par les détails annexes
+d'une quelconque application particulière.
+Il convient de traiter ces exercices tranquillement, en s'interrogeant à
+chaque fois sur le propos de la fonctionnalité particulière qui est mise en
+avant.
+Il ne sert strictement à rien d'enchaîner les exercices sans les comprendre
+en se contentant de :
+  ``ça compile et ça ne plante pas donc j'ai bon, je passe à la suite''
+
+La consultation de la documentation est très importante et fait partie
+intégrante du travail.
+Pour ceci vous disposez des pages de manuel indiquées à chaque exercice ainsi
+que des documents disponibles sur :
+  http://www.enib.fr/~harrouet/courses.html
+Le document ``Threads.pdf'' contient notamment des informations sur l'API
+Posix (en C) des threads et les ressources en lignes suivantes :
+  http://en.cppreference.com/w/cpp/thread
+  http://en.cppreference.com/w/cpp/atomic
+apporteront tous les détails de mise en oeuvre en C++.
+Le document ``Intro_Parallelisme.pdf'' contient des informations liées à
+l'optimisation des performances d'un programme multi-threads.
+Le fichier d'entête ``crsUtils.hpp'' doit également être consulté très
+régulièrement puisqu'il fournit, au delà de quelques fonctionnalités
+utilitaires, la mise à disposition dans une forme facilitée pour les étudiants
+(limitation des pointeurs, des conversions de types, utilisation de chaînes
+et vecteurs C++, contrôle des échecs...) des appels et fonctionnalités
+systèmes que nous utiliserons.
+
+Vous êtes censés savoir refaire et réutiliser tous ces exercices lors des
+séances ultérieures ; n'hésitez donc pas à poser des questions lors de cette
+séance et à les refaire tout seul ensuite pour vous entraîner.
+
+==============================================================================
+prog01_data_placement.cpp : Le placement des données en mémoire a une
+                            influence considérable sur les performances d'un
+                            traitement parallèle.
+
+Le programme fourni a une forme très similaire à celle des programmes
+multi-threads précédents : lancement de tous les threads, attente de tous les
+threads et organisation des données en structures propres à chacun ou commune
+à l'ensemble.
+Il effectue ici encore un traitement calculatoire parfaitement inutile qui
+vise juste à mettre en évidence l'influence des accès mémoire sur les
+performances d'un traitement parallèle.
+Il s'agit ici d'effectuer un grand nombre d'incrémentations sur les éléments
+du tableau ``workSpace'' propre à chaque thread.
+Chacun travaille donc indépendamment sur son propre tableau ce qui ne
+nécessite aucune synchronisation ; la fusion des résultats n'a lieu qu'à la
+terminaison des traitements.
+
+Étudiez alors le fonctionnement du programme en remarquant que les macros
+``USE_PADDING'' et ``USE_LOCAL_COPY'' en haut du fichier source valent
+initialement ``0''.
+À l'initialisation du programme, les CPUs présents sur la machine sont
+détectés ce qui détermine le nombre de threads.
+Vous remarquerez notamment que chaque thread est explicitement attaché à
+un CPU ; ceci est important pour étudier l'influence du placement des données
+puisque si un thread migre intempestivement d'un CPU à un autre, ce sont alors
+plusieurs CPU qui doivent accéder successivement aux données de ce thread
+particulier.
+Vous remarquerez également que le très grand nombre d'incrémentations à
+effectuer est divisé équitablement entre les différents threads participant
+au traitement.
+
+En complétant les points {1} et {2} du programme fourni vous réaliserez le
+lancement et l'attente de tous les threads comme à l'accoutumée.
+
+Pour tester cette première version du programme il suffit de le lancer sans
+plus d'arguments.
+Vous devrez le relancer plusieurs fois pour relever une performance moyenne.
+Celle-ci ne nous dit rien en tant que telle mais sera comparée à celles
+obtenues avec les versions ultérieures de ce programme.
+nb : lorsque notre programme détecte les CPUs, il relève les ``packages'' et
+     les ``cores'' auxquels ils appartiennent.
+     Les machines disponibles dans les salles utilisées pour ce Labo disposent
+     d'un seul ``package'' doté de quatre ``cores''.
+     Certaines d'entre elles (poivre16 à poivre25) disposent de la technologie
+     SMT (simultaneous multithreading) qui permet à un même ``core''
+     d'exécuter plusieurs séquences d'instructions (deux ici) en profitant
+     des latences d'accès aux données pour les entremêler.
+     Ceux d'entre vous qui utilisent ces machines peuvent passer l'option
+     ``smt'' sur la ligne de commande de notre programme : vous disposerez
+     alors virtuellement de 8 CPUs.
+     En relevant les performances dans ces conditions vous devriez constater
+     que les performances globales restent les mêmes ; les performances
+     individuelles des CPUs (qui sont deux fois plus nombreux) sont divisées
+     par deux.
+     Ce résultat s'explique par le fait que ce programme n'est pas limité par
+     la puissance de calcul des CPUs mais par leur accès aux données en
+     mémoire : les CPU attendent tous que les données leur parviennent et
+     n'ont rien d'autre à faire pendant ce temps.
+
+Intervenez maintenant sur la macro ``USE_LOCAL_COPY'' en haut du fichier
+source pour passer sa valeur à ``1''.
+Il vous faut désormais compléter le point {3} du programme fourni pour faire
+réaliser aux threads le même traitement calculatoire inutile qu'auparavant
+mais cette fois-ci sur une copie locale de leur champ ``td.workSpace''.
+
+Testez alors cette nouvelle version du programme en relevant avec soin la
+performance moyenne obtenue.
+Vous devriez constater qu'elle est bien meilleure qu'à votre précédent relevé.
+Ceci peut sembler de prime abord surprenant puisque les instructions
+effectuant la partie ``utile'' du calcul sont identiques à la version
+précédente et que nous avons par surcroît ajouté des opérations de recopies
+des données avant et après !
+L'explication des mauvaises performances de notre version initiale tient dans
+le fonctionnement des mémoires caches des CPUs (étudiées en détail dans le
+module SEN de l'ENIB).
+Ces caches sont structurés en ``lignes'' (cache-line, vocabulaire) qui
+regroupent des données consécutives (64 octets sur les machines utilisées
+ici).
+Lorsque le moindre octet d'une telle ligne est modifié, le mécanisme de
+``cohérence de caches'' (vocabulaire) des multiples CPUs considère que toute
+la ligne est modifiée ce qui nécessite une recopie de celle-ci vers tous les
+caches qui utilisent une donnée recouverte par cette ligne.
+C'est le comportement attendu lorsque des CPUs partagent effectivement une
+même variable (elle doit être visible avec la même valeur sur tous les CPUs).
+En revanche, ici les données manipulées par nos threads ne sont pas
+confondues ; elles sont juste tellement proches les unes des autres dans le
+vecteur ``sd.td'' qu'elles apparaissent dans des lignes de caches communes.
+Puisque le mécanisme de cohérence de caches ne distingue pas les octets d'une
+même ligne, il considère la modification de données proches de la même façon
+que celle de données confondues et provoque la même recopie des lignes de
+cache concernées : c'est le phénomène de ``faux-partage'' (vocabulaire).
+Les pages 35 et 36 du document ``Intro_Parallelisme.pdf'' illustrent également
+ce problème.
+Le fait de travailler sur une copie des données initiales, dans la deuxième
+version du programme, déplace les données activement utilisées par les CPUs
+dans des zones éloignées (la pile de chaque thread) ce qui élimine le
+phénomène de faux-partage ; la toute dernière recopie vers des zones proches
+entre elles est sans conséquence puisqu'elle n'a lieu qu'une seule fois à la
+toute fin.
+nb : ceux d'entre vous qui utilisent des machines utilisant la technologie SMT
+     peuvent à nouveau l'expérimenter en passant l'option ``smt'' sur la ligne
+     de commande.
+     Une nouvelle fois, les performances globales restent les mêmes que
+     sans cette option.
+     Ce résultat s'explique cette fois d'une manière totalement opposée à la
+     précédente : ce programme n'attend jamais l'arrivée des données
+     puisqu'elles restent présentes dans le cache le plus proche de chacun des
+     CPUs ; ceux-ci travaillent donc toujours et il n'y a aucune latence qui
+     mériterait d'être exploitée par l'enchevêtrement des opérations de
+     l'autre CPU du même ``core''.
+
+Il n'est pas toujours confortable d'avoir à recopier en local les données
+sur lesquelles un thread doit travailler.
+Une solution alternative consiste simplement à s'assurer que, dès leur
+placement initial, les données activement utilisées par les multiples threads
+soient suffisamment éloignées les unes des autres.
+Il suffit pour cela d'insérer entre elles du ``bourrage'' (padding,
+vocabulaire), c'est à dire des données inutiles qui occupent la place de
+plusieurs lignes de cache.
+En toute rigueur une seule ligne de cache de bourrage devrait suffire mais
+certaine machines chargent de manière spéculative la ligne suivante, donc
+deux lignes sont plus prudentes.
+De plus, nous ne maîtrisons pas l'alignement des structures par rapport aux
+lignes de caches (la structure peut être à cheval sur plusieurs lignes) donc
+une ligne de bourrage supplémentaire permet d'évacuer ce problème.
+En intervenant sur la macro ``USE_PADDING'' en haut du fichier
+source pour passer sa valeur à ``1'', et en remettant à ``0'' la macro
+``USE_LOCAL_COPY'', vous provoquerez l'insertion de telles données de bourrage
+dans les structures ``ThreadData'' afin que leurs champs ``workSpace''
+respectifs soient suffisamment éloignés les uns des autres.
+Reprenez alors la mesure des performances de cette nouvelle version de votre
+programme.
+Vous devriez constater qu'elles sont similaires à celles de la version qui
+utilisait une recopie locale ; nous avons simplement produit le même effet
+(l'éloignement des données activement utilisées) par un procédé différent.
+
+Ces expériences ont montré l'influence capitale des mémoires caches sur les
+performances des traitements parallèles.
+Une étude attentive du placement des données en mémoire permet d'éviter des
+écueils qui empêcheraient d'exploiter pleinement les capacités de calcul
+offertes par le matériel.
+Le recours à du bourrage pour éloigner les données activement utilisées par
+les multiples threads peut sembler au premier abord être un gaspillage
+d'espace mémoire mais c'est dans la pratique très négligeable.
+En effet, s'il n'y a que peu de CPUs, il n'y aura que peu de données à
+éloigner et le volume total de bourrage restera faible.
+Si au contraire une machine dispose de beaucoup de CPUs (plusieurs dizaines),
+alors le volume de bourrage sera multiplié d'autant ; toutefois une telle
+machine, dimensionnée pour d'énormes traitements, dispose forcément d'une
+quantité de mémoire en conséquence et les quelques kilo-octets de mémoire
+gaspillés seront négligeables.
+Le seul volume d'information qu'il faut chercher à optimiser est celui des
+données qui remplissent les lignes de caches chargées par les CPUs, afin que
+toutes les données présentes en cache soient celles qui sont vraiment utiles
+aux calculs.
+
+Documentation à consulter :
+  Threads.pdf
+  Intro_Parallelisme.pdf
+  std::thread --> http://en.cppreference.com/w/cpp/thread/thread
+
+==============================================================================
+prog02_task_parallelism.cpp : Lorsqu'un problème est constitué de plusieurs
+                              tâches indépendantes, celles-ci peuvent être
+                              exécutées en parallèle.
+
+Nous utilisons comme prétexte pour cet exemple le problème de l'égalisation de
+l'histogramme d'une image.
+  https://en.wikipedia.org/wiki/Histogram_equalization
+Il s'agit de calculer l'histogramme cumulé de chaque composante (rouge, verte
+et bleue) des pixels de l'image afin d'en rectifier les couleurs pour que
+toutes les intensités lumineuses de ces composantes soient uniformément
+représentées dans l'image.
+L'intérêt pratique d'un tel traitement est de faire apparaître les détails
+d'une image qui passaient inaperçus à cause d'une surexposition (trop claire)
+ou d'un sous-exposition (trop foncée).
+La constitution de l'histogramme d'une composante consiste à compter le nombre
+de fois où chacune de ses intensités est présente dans l'image ; en pratique
+il s'agit d'un tableau de 256 compteurs initialement nuls (un pour
+chaque intensité possible) qu'on incrémente à chaque fois qu'une telle
+intensité est rencontrée dans l'image.
+L'histogramme cumulé consiste à ajouter à la valeur de chacun de ces compteurs 
+la somme de tous ceux qui le précèdent.
+La rectification des intensités lumineuse consiste à les remplacer par la
+valeur qui leur correspond dans l'histogramme cumulé multipliée par un facteur
+prenant en compte la taille de l'image.
+Le programme ``prog00_serial.cpp'' en illustre le principe sous la forme
+d'un traitement purement séquentiel sur une série d'images.
+Consultez-le attentivement afin de vous assurer de la bonne compréhension de
+l'enchaînement des opérations.
+Vous n'aurez pas à modifier ce programme ; il servira de référence pour
+comparer ses performances avec celles des versions parallélisées que nous
+allons réaliser.
+
+Puisque le travail à effectuer sur une des composantes de couleur est
+indépendant de celui qui a lieu sur les deux autres, la première approche
+envisageable pour paralléliser facilement ce traitement consiste à confier
+ce travail à trois threads (un pour chaque composante).
+Cette stratégie simple est désignée par ``parallélisme de tâches''.
+Le programme ``prog02_task_parallelism.cpp'' fourni a une forme très similaire
+à celle du programme multi-threads précédent : lancement de tous les
+threads, attente de tous les threads et organisation des données en structures
+propres à chacun (en insérant du bourrage) ou commune à l'ensemble.
+Toutefois, il effectue ceci de manière répétée dans une boucle qui traite
+une séquence d'images (plusieurs milliers pour que la durée soit
+significative dans les mesures de performances).
+Il ne vous reste ici qu'à compléter les points {1} et {2} du programme fourni.
+
+Les premiers tests consistent à lancer de nombreuses fois les deux programmes
+présentés ici afin d'en relever les performances.
+  $ ./prog00_serial p6_*.ppm
+  $ ./prog02_task_parallelism p6_*.ppm
+Vous devriez constater que cette première stratégie de parallélisation
+apporte effectivement un gain de performance.
+Selon la taille des images traitées, les gains peuvent varier (ce comportement
+est assez variable selon les machines).
+  $ ./prog00_serial p6_small.ppm
+  $ ./prog02_task_parallelism p6_small.ppm
+  $ ./prog00_serial p6_large.ppm
+  $ ./prog02_task_parallelism p6_large.ppm
+Néanmoins, nous pouvons d'emblée formuler une critique sur la stratégie
+choisie ici : quel que soit le nombre de CPUs disponibles, nous n'en
+utilisons que trois.
+Ceci constitue une limite classique du ``parallélisme de tâches'' : le
+parallélisme est limité par le nombre de tâches que nous réussissons à
+isoler et non par le nombre d'unités de calcul disponibles.
+
+nb : vous pouvez visualiser le résultat du traitement d'image afin de le
+     comparer aux images originales.
+     En effet, à la fin de la séquence, notre programme sauvegarde la
+     dernière image traitée dans le fichier ``output_last.ppm''.
+
+Documentation à consulter :
+  Threads.pdf
+  Intro_Parallelisme.pdf
+  std::thread --> http://en.cppreference.com/w/cpp/thread/thread
+
+==============================================================================
+prog03_data_parallelism.cpp : Lorsqu'un volume conséquent de données doit être
+                              traité, il peut être envisagé de le diviser
+                              entre plusieurs threads.
+
+Pour répondre à la critique précédente, nous envisageons cette fois de
+découper le traitement d'une image en plusieurs parties qui peuvent être
+confiées à autant de threads distincts qu'il y a de CPUs disponibles.
+En effet, dans le cas présent l'ensemble des pixels représente un volume
+d'information conséquent qui peut être découpé en portions non négligeables.
+De plus, le traitement à effectuer est le même sur tous les pixels ; le
+découpage du problème peut dont simplement avoir lieu de manière équitable
+comme dans le programme ``prog01_data_placement.cpp'' ; ainsi, une exécution
+idéale des threads devrait en théorie les faire se terminer simultanément.
+
+Cependant, l'algorithme d'égalisation d'histogramme réalisé ici s'effectue
+en deux phases : constitution d'un histogramme de toute l'image puis
+exploitation de cet histogramme pour rectifier l'image.
+Il est donc important que tous les threads aient terminé la constitution de
+l'histogramme sur la partie de l'image qui leur est confiée et que le cumul
+de l'histogramme soit réalisé avant que chacun d'eux ne commence à exploiter
+l'histogramme ainsi obtenu pour la rectification de l'image.
+Cette contrainte impose une ``barrière de synchronisation'' (vocabulaire) des
+threads entre les deux phases qui constituent leur traitement.
+Une observation attentive de la boucle de cumul de l'histogramme, a dû vous
+faire remarquer qu'il s'agit d'un travail purement séquentiel : l'accumulation
+se fait nécessairement du début vers la fin et n'est pas parallélisable.
+nb : l'algorithme ``parallel-reduction'' permet théoriquement d'accumuler en
+     parallèle mais son implémentation serait inefficace ici car elle
+     nécessite de multiples synchronisations (8 pour 256 éléments).
+     Un simple traitement séquentiel de ces 256 éléments est infiniment plus
+     rapide.
+Ceci signifie qu'entre les deux phases, un thread et un seul doit réaliser
+cette accumulation !
+Il nous faudra donc recourir à deux barrières de synchronisation.
+La première permettra de s'assurer que tous les threads ont terminé leur
+histogramme partiel, un unique thread pourra alors les fusionner en les
+accumulant.
+La seconde servira à indiquer que ce cumul est terminé, les threads pourront
+alors l'exploiter pour rectifier la portion d'image qui leur est confiée.
+
+Puisque chaque thread calcule un histogramme partiel, nous éviterons de les
+faire partager au cours de cette phase un histogramme commun ; en effet, nous
+avons constaté dans le programme ``prog01_data_placement.cpp'' que la
+manipulation incessante par plusieurs threads de données proches ou confondues 
+avait des conséquences désastreuses sur les performances.
+Ces histogrammes partiel seront donc placés dans les structures qui sont
+propres à chaque thread.
+En revanche, l'histogramme cumulé est constitué par un seul thread et est
+ensuite uniquement consulté en parallèle ; il peut donc être placé dans
+la structure partagée.
+
+Les deux barrières de synchronisation seront réalisées grâce à une variable
+condition et son verrou associé (voir le sujet précédent).
+Pour matérialiser la première, nous utilisons le champ ``inHistogram'' de
+la structure partagée.
+Ce champ doit être initialisé au nombre de threads quand ceux-ci sont lancés.
+Quand chacun d'eux termine son histogramme partiel, il décrémente ce champ
+(sous le contrôle du verrou).
+Quand le dernier d'entre eux effectue sa décrémentation, ce champ passe à
+``0'' ce qui signifie que tous les histogrammes partiels sont constitués ; il
+doit alors le signaler avec la variable condition.
+De son côté, le seul thread qui doit réaliser la fusion et le cumul des
+histogrammes attend, à l'aide de la variable condition, que le champ
+``inHistogram'' ait effectivement atteint la valeur ``0''.
+Lorsque c'est le cas il peut réaliser son travail de fusion et de cumul.
+La deuxième barrière de synchronisation est matérialisée par le champ
+``histogramEqualised'' de la structure partagée.
+Ce champ doit être initialisé à ``false'' quand les threads sont lancés.
+L'unique thread qui fusionne et accumule les histogrammes change l'état
+de cet indicateur (sous le contrôle du verrou) et le signale avec la variable
+condition.
+Les autres threads attendent justement, à l'aide de la variable condition, que
+le champ ``histogramEqualised'' passe à ``true''.
+Lorsque c'est le cas tous les threads peuvent exploiter l'histogramme
+cumulé pour rectifier l'image.
+
+En complétant les points {1} et {2} du programme fourni vous réaliserez
+les désormais traditionnelles étapes de lancement et d'attente des multiples
+threads.
+La nouveauté vient ici du fait qu'il faut désormais initialiser avant le
+lancement des threads les variables qui matérialisent les barrières de
+synchronisation (puisqu'elles sont modifiées à chaque nouvelle itération).
+Les points {3}, {4}, {5} et {6} doivent également être complétés afin de
+respecter le principe des barrières de synchronisation décrit plus haut.
+
+Ce nouveau programme peut être testé comme les précédents afin de comparer
+les nouvelles performances obtenues.
+Vous devriez être surpris de constater qu'elles ne sont pas systématiquement
+meilleures que les précédentes (voire moins bonnes) et surtout qu'elles
+varient beaucoup d'un essai à l'autre.
+C'est effectivement très décevant car cette fois-ci tous les CPUs sont
+utilisés et, malgré nos efforts, les performances ne sont pas au rendez-vous.
+
+Un examen attentif de la stratégie adoptée ici peut néanmoins nous éclairer.
+Tout d'abord,nous créons et détruisons tous les threads à chaque nouvelle
+itération.
+Ceci cause une charge de travail non négligeable au système d'exploitation.
+Même si depuis quelques années ces créations et destructions on été
+considérablement accélérées sous Linux, il n'en est pas de même sur tous
+les systèmes d'exploitation (les performances pourraient donc être encore
+bien pires sur une autre plateforme).
+L'autre point pénalisant a déjà été constaté dans le sujet précédent : les
+sémaphores d'exclusion mutuelle sont des objets de synchronisation implémentés
+dans le noyau du système d'exploitation.
+Il en est de même pour les variables conditions.
+Leur manipulation invoque systématiquement des appels système et l'usage de
+l'ordonnanceur (suspension/relance des tâches) ce qui a un coût non
+négligeable en temps d'exécution.
+Que ce soit pour la création et la destruction des threads ou pour les
+barrières de synchronisation, notre programme fait énormément d'aller-retours
+entre le mode utilisateur et le mode noyau et les threads sont régulièrement
+suspendus et relancés par l'ordonnanceur.
+Au delà des performances très décevantes, ceci explique leur très grande
+variabilité (aléas de l'ordonnancement).
+
+Documentation à consulter :
+  Threads.pdf
+  Intro_Parallelisme.pdf
+  std::thread --> http://en.cppreference.com/w/cpp/thread/thread
+  std::mutex  --> http://en.cppreference.com/w/cpp/thread/mutex
+  std::condition_variable_any
+            --> http://en.cppreference.com/w/cpp/thread/condition_variable_any
+
+==============================================================================
+prog04_lock_free.cpp : Les opérations atomiques permettent de réaliser des
+                       synchronisations en mode utilisateur.
+
+Parmi les problèmes soulevés dans le programme précédent il y avait les
+créations et destructions incessantes des threads.
+Une solution beaucoup plus raisonnable consiste à démarrer une fois pour
+toutes l'ensemble des threads pour qu'ils exécutent en boucle leur traitement.
+Il faut bien entendu des moyens de synchronisation pour qu'ils effectuent une
+nouvelle itération de leur traitement lorsque le programme principal le
+requiert.
+
+Le second problème évoqué concernait le recours incessant aux appels systèmes
+et à l'ordonnanceur pour assurer la synchronisation des threads.
+Une solution alternative consiste à se passer complètement des objets de
+synchronisation en mode noyau (sémaphores d'exclusion mutuelle et variables
+conditions) et à utiliser des opérations atomiques pour assurer la
+synchronisation entièrement en mode utilisateur (``lock-free algorithms'',
+vocabulaire).
+Au delà des détails de réalisation de ces opérations de synchronisation, ce
+procédé introduit une modification de l'architecture de l'application.
+En effet, lorsque nous invoquions des appels bloquants (attente des threads,
+synchronisation en mode noyau) nous utilisions explicitement N threads pour
+occuper N CPUs ; le programme principal étant bloqué il n'utilisait aucun CPU
+pendant l'attente.
+Si maintenant l'attente a lieu en mode utilisateur, il s'agit d'une ``attente
+active'' (vocabulaire) c'est à dire une boucle qui teste une variable atomique
+de manière incessante jusqu'à ce qu'elle change d'état ; ceci occupe
+pleinement le CPU.
+Dans ces conditions, il n'est pas question de confier le travail utile à N
+threads pendant que le programme principal les attend de manière active.
+Il faut au contraire utiliser N-1 threads et confier au programme principal
+une partie du travail utile ; ainsi le temps d'attente active après les phases
+de travail utile seront très courtes puisque le travail est équitablement
+découpé en parties.
+
+Les barrières de synchronisation à base de variables atomiques sont assez
+similaires à celles que nous venons de réaliser : une partie consiste à
+attendre qu'une variable change d'état tandis que l'autre met fin à cette
+attente en modifiant la variable en question.
+Toutefois, puisqu'il n'y a plus de section critique assurée par un verrou, il
+faut coordonner les modifications de multiples variables autour de la barrière
+de synchronisation : modifier les variables _avant_ la variable atomique qui
+sert à la synchronisation (opération ``release'', vocabulaire), et consulter
+ces variables _après_ la boucle qui attend le changement de la variable
+atomique (opération ``acquire'', vocabulaire).
+nb : il y a moyen de contrôler très finement l'ordre mémoire de ces opérations
+     atomiques (``std::memory_order'') mais ceci sort largement du cadre de
+     cette initiation au parallélisme et n'a que peu d'effet sur les modèles
+     de processeurs utilisés pour ces exercices (x86/x86_64).
+
+Pour revenir au problème qui nous sert de prétexte, au delà de la
+synchronisation qui permet de relancer le traitement d'une prochaine image,
+il nous faut assurer les synchronisations avant et après l'étape intermédiaire
+qui consiste à fusionner et accumuler les histogrammes partiels.
+La première de ces deux synchronisation est indispensable et sera similaire
+dans son principe à celle que nous avions déjà réalisée.
+En revanche nous pouvons trouver une alternative à la seconde.
+En effet, les threads qui ne réalisent pas le cumul de l'histogramme n'ont
+rien d'autre à faire pendant qu'un seul travaille.
+Dans ces conditions, il est finalement plus efficace de laisser chaque thread
+faire le même travail de cumul (redondant donc) dans des variables locales
+plutôt que leur faire subir une nouvelle barrière de synchronisation qui
+attend que l'unique thread ait fini le cumul.
+
+Les points {1} et {2} du programme fourni devront être complétés de manière
+semblable à ce que vous avez déjà réalisé pour lancer et attendre de multiples
+threads si ce n'est que, contrairement aux deux solutions précédentes, ces
+deux étapes ne seront exécutées qu'une seule fois et non de manière répétée
+pour chacune des images à traiter.
+Toutefois, le tout premier thread (numéro ``0'') du vecteur ``sd.td'' ne sera
+pas créé (ni attendu) car c'est le programme principal qui effectuera sa part
+de travail.
+Remarquez notamment que le code exécuté par les threads est maintenant
+découpé en deux fonctions : la première ``threadTask()'' se contente de
+respecter la synchronisation pour le passage d'une image à la suivante et elle
+invoque à chaque fois la seconde ``threadWork()'' qui effectue une part du
+traitement sur l'image courante.
+L'intérêt de ce découpage vient du fait que le programme principal peut alors
+invoquer la seconde fonction ``threadWork()'' en se faisant passer pour le
+thread qui n'a pas été créé (voir l'appel entre les points {3} et {4}).
+
+Les points {3}, {4} et {5} du programme fourni seront complétés pour assurer
+la synchronisation globale du procédé (passage d'une image à l'autre et
+fin de la séquence d'images).
+Bien entendu, les points {7} et {8} doivent être complétés de manière
+complémentaire.
+Remarquez que, puisque les threads restent désormais tourner en arrière plan,
+il est maintenant nécessaire de leur signifier explicitement qu'ils doivent
+se terminer (champ ``done'' de la structure partagée ``sd'') lorsqu'il n'y a
+plus d'image à traiter ; dans les deux solutions précédentes le programme
+principal arrêtait simplement de créer de nouveaux threads.
+
+Finalement, le point {8} doit assurer la synchronisation qui intervient entre
+les deux phases du traitement.
+Le principe est similaire à celui du programme précédent : nous comptons
+les threads qui sont encore dans la première phase, chacun décrémente le
+compteur lorsqu'il a fini cette phase et attend que ce compteur atteigne ``0''
+pour passer à la phase suivante.
+Bien entendu, le point {3} doit initialiser ce compteur (``inHistogram'') au
+nombre total de threads qui participent au traitement (``threadCount'').
+Remarquez que le compteur ``inCurrentStep'' peut, lui, être initialisé à 
+``threadCount-1'' ce qui permet d'éviter sa décrémentation par le programme
+principal au niveau du point {4} qui se contente d'en attendre le retour à
+``0''.
+
+Ce nouveau programme peut être testé comme les précédents afin de relever
+les nouvelles performances obtenues.
+Cette fois elles doivent être meilleures et plus stables que dans la version
+précédente.
+En particulier, le gain de performances doit être plus appréciable dans le cas
+de petites images que dans le cas de grandes.
+Effectivement, lorsque les images deviennent petites, le temps de calcul
+devient court alors que le temps de synchronisation ne change pas (donc
+augmente en proportion) ; si nous utilisons comme ici un procédé qui allège le
+coût des barrières de synchronisation, l'effet de cette modification est très
+sensible.
+nb : ceux d'entre vous qui utilisent des machines utilisant la technologie SMT
+     peuvent à nouveau l'expérimenter en passant l'option ``smt'' sur la ligne
+     de commande.
+     Il se peut que ça apporte un surcroît de performances mais ce n'est
+     pas systématique (notamment en fonction de la taille des images).
+
+Il est connu que l'attente active est en général à éviter car elle a tendance
+à gaspiller les ressources de calcul et l'énergie.
+Elle ne doit être employée qu'à bon escient, dans des conditions maîtrisées,
+quand les performances sont un critère déterminant ; c'est le cas ici.
+En effet, dans ce scénario, les attentes actives sont toujours extrêmement
+courtes :
+- la charge de travail est équitablement répartie entre tous les threads
+  (y compris le programme principal)
+- à peine une image est-elle traitée que le traitement de la suivante doit
+  immédiatement commencer.
+Ce n'est pas toujours le cas ; s'il fallait attendre entre chaque image (pour
+produire un affichage par exemple) la barrière de synchronisation qui assure
+leur enchaînement devrait reposer sur une variable condition afin de laisser
+les CPUs inactifs pendant cette longue attente.
+La barrière de synchronisation qui intervient entre les deux phases du
+traitement mérite quant à elle de conserver l'usage des opérations atomiques
+puisqu'il n'y a aucune raison d'attendre longuement entre ces deux phases.
+Dans tous les cas, il faut privilégier la stratégie qui consiste à lancer les
+threads une fois pour toutes et à les synchroniser par le moyen qui convient
+au problème (attente active ou bloquante).
+En effet, même si exceptionnellement sous Linux les créations et destructions
+incessantes de threads ne sont pas extrêmement pénalisantes, ce n'est
+généralement pas le cas avec d'autres systèmes.
+
+Documentation à consulter :
+  Threads.pdf
+  Intro_Parallelisme.pdf
+  std::thread --> http://en.cppreference.com/w/cpp/thread/thread
+  std::atomic --> http://en.cppreference.com/w/cpp/atomic/atomic
+
+==============================================================================

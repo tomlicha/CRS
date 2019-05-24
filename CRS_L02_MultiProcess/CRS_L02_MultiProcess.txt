@@ -1,0 +1,419 @@
+==============================================================================
+Communication multi-processus                   (Fabrice Harrouet, module CRS)
+==============================================================================
+
+Il s'agit d'une série d'exercices servant à la prise en main de mécanismes
+élémentaires de programmation système utiles à la communication.
+Au cours de cette séance nous ferons apparaître de nouveau processus et
+les ferons communiquer.
+
+Chaque programme est volontairement très simple afin de se focaliser sur la
+découverte des services proposés sans être distrait par les détails annexes
+d'une quelconque application particulière.
+Il convient de traiter ces exercices tranquillement, en s'interrogeant à
+chaque fois sur le propos de la fonctionnalité particulière qui est mise en
+avant.
+Il ne sert strictement à rien d'enchaîner les exercices sans les comprendre
+en se contentant de :
+  ``ça compile et ça ne plante pas donc j'ai bon, je passe à la suite''
+
+La consultation de la documentation est très importante et fait partie
+intégrante du travail.
+Pour ceci vous disposez des pages de manuel indiquées à chaque exercice ainsi
+que des documents disponibles sur :
+  http://www.enib.fr/~harrouet/courses.html
+Le fichier d'entête ``crsUtils.hpp'' doit également être consulté très
+régulièrement puisqu'il fournit, au delà de quelques fonctionnalités
+utilitaires, la mise à disposition dans une forme facilitée pour les étudiants
+(limitation des pointeurs, des conversions de types, utilisation de chaînes
+et vecteurs C++, contrôle des échecs...) des appels et fonctionnalités
+systèmes que nous utiliserons.
+
+Vous êtes censés savoir refaire et réutiliser tous ces exercices lors des
+séances ultérieures ; n'hésitez donc pas à poser des questions lors de cette
+séance et à les refaire tout seul ensuite pour vous entraîner.
+
+==============================================================================
+prog01_fork_waitpid.cpp : Un processus peut en engendrer un autre ; il doit
+                          obligatoirement attendre la fin de l'exécution du
+                          processus enfant ce qui permet de connaître les
+                          circonstances de sa terminaison.
+
+En exécutant tout d'abord le programme fourni sans l'avoir encore complété,
+vous constaterez qu'un processus est désigné de manière unique dans le système
+d'exploitation par un numéro : le PID (process-identifier) qui est consulté
+avec l'appel système ``getpid()''.
+Chaque processus a un et un seul processus parent dont l'identifiant est
+fourni par l'appel système ``getppid()''.
+nb: le tout premier processus (``init'', d'identifiant 1) est un cas à part
+    puisqu'il est créé spontanément au démarrage du système d'exploitation ;
+    il s'agit de l'ancêtre de tous les processus.
+
+En complétant le point {1} du programme fourni, vous utiliserez l'appel
+système ``fork()'' qui permet de faire apparaître un nouveau processus.
+Ce procédé se déroule comme cela :
+- un processus exécute son code et modifie ses données jusqu'à
+  atteindre l'appel système ``fork()'',
+- à l'intérieur de cet appel, le système crée un nouveau processus (avec
+  un nouvel identifiant donc) qui est la copie conforme de son processus
+  parent : données identiques, même code et même point d'avancement dans
+  le code,
+- le processus initial poursuit naturellement son exécution en ressortant de
+  l'appel à ``fork()'',
+- le processus enfant étant apparu à l'intérieur de ``fork()'', il poursuit
+  (ou commence) également son exécution en ressortant de cet appel.
+Nous pouvons interpréter la création d'un nouveau processus comme la métaphore
+d'une photocopie :
+- un original portant les traces de son histoire (écritures, tâches...) entre
+  dans le procédé,
+- l'original ressort intact,
+- une copie identique en tous points à l'original ressort également (elle
+  semble avoir vécu la même histoire que l'original),
+- les deux exemplaires, bien qu'étant initialement identiques, ont désormais 
+  des avenir distincts (écrire sur l'un ne modifie pas l'autre).
+
+À la sortie de ``fork()'', la seule distinction entre les deux processus est
+visible à travers la valeur de retour de cet appel.
+Relancez alors le programme afin de contrôler avec attention les messages
+obtenus et notamment la relation entre cette valeur de retour et les
+identifiants des processus.
+Le processus enfant obtient 0 alors que le processus initial obtient
+l'identifiant du processus enfant qu'il vient de créer.
+
+nb: Il se peut que vous constatiez que le processus enfant a pour parent
+    le processus d'identifiant ``1''.
+    Ceci arrive lorsque son parent disparaît avant lui ; il est alors
+    ``adopté'' par le processus ``1''.
+    Ce phénomène disparaîtra lorsque nous réaliserons l'opération d'attente
+    juste après.
+
+Maintenant que vous savez distinguer le processus initial du processus
+enfant qu'il vient de créer, vous pouvez compléter le point {2} du code
+fourni afin que ces deux processus se comportent différemment.
+Le point {3}, qui n'est executé que par le processus initial, doit également
+être complété pour réaliser l'opération d'attente du processus enfant.
+
+Relancez à nouveau le programme en contrôlant attentivement l'enchaînement
+des messages.
+Vous devez constater que l'opération d'attente bloque le processus initial
+jusqu'à ce que le processus enfant ait terminé son exécution.
+L'opération d'attente permet également de connaître les circonstances de
+la terminaison du processus enfant.
+En l'état, le processus enfant atteint la fin de la fonction ``main()''
+en renvoyant la valeur ``0''.
+Vérifiez que la variable ``status'' renseignée lors de l'attente obtient
+bien cette valeur.
+
+En intervenant sur le point {4} de programme fourni, vous provoquerez
+une terminaison volontaire (et normale) du processus enfant en renvoyant
+une valeur entière de votre choix par l'appel ``exit()''.
+La transmission d'une telle valeur est un mécanisme simple pour indiquer
+comment s'est terminé un programme ; généralement ``0'' signifie que tout
+s'est bien déroulé.
+nb: À titre d'exemple, consultez la rubrique VALEURS DE RETOUR (EXIT VALUES)
+    proche de la fin de la page de documentation de la commande rsync :
+    $ man 1 rsync
+Relancez alors le programme afin de vérifier que la variable ``status''
+obtient bien la valeur que vous avez choisie.
+
+Il se peut également qu'un processus ne se termine pas de manière volontaire.
+C'est le cas en particulier des ``plantages''.
+Dans ces conditions, le système d'exploitation envoie un signal au processus
+incriminé afin de provoquer sa terminaison brutale.
+La valeur obtenue par ``status'' n'a alors aucun sens puisque le processus
+enfant n'a pas eu l'occasion de renvoyer sa valeur !
+C'est ici que la variable ``signal'', également renseignée lors de l'opération
+d'attente du processus enfant, intervient pour nous faire connaître quel
+signal a provoqué la terminaison brutale du processus enfant.
+En complétant le point {5} du programme fourni, vous provoquerez un tel
+plantage.
+Relancez à nouveau le programme pour constater l'information obtenue par
+la variable ``signal''.
+
+À travers ces quelques essais vous avez réalisé la démarche usuelle pour
+utiliser un nouveau processus :
+- le nouveau processus est créé par l'appel système ``fork()'' ; les deux
+  processus sont quasiment indiscernables, si ce n'est par le résultat de cet
+  appel,
+- en s'appuyant sur ce résultat nous distinguons ce que fera chacun des deux
+  processus,
+- le processus enfant se terminera tôt ou tard (volontairement ou non),
+- le processus initial doit attendre son processus enfant ; cela lui permet
+  de connaître, si c'est utile, les circonstances de sa terminaison.
+
+Documentation à consulter :
+  crs::fork()      --> man 2 fork
+  crs::waitpid()   --> man 2 waitpid
+  crs::exit()      --> man 3 exit
+  crs::strsignal() --> man 3 strsignal
+  man 7 signal
+
+==============================================================================
+prog02_address_space.cpp : Un processus et son parent ont initialement des
+                           espaces d'adressages virtuels identiques mais
+                           distincts ; une zone physiquement commune doit être
+                           explicitement demandée au système d'exploitation.
+
+Il s'agit dans un premier temps d'exécuter le programme fourni sans l'avoir
+encore complété, et d'observer attentivement son déroulement vis-à-vis de son
+code source.
+Trois variables entières sont initialement utilisées afin de représenter les
+différentes classes de stockage usuelles :
+- l'une est globale, elle utilise une classe de stockage statique
+  (elle existe pendant toute la durée du programme),
+- une autre est locale, elle utilise une classe de stockage automatique
+  (elle est automatiquement créée à l'entrée dans la fonction ou le bloc et
+   détruite à sa sortie),
+- une troisième est créée par allocation dynamique et doit être explicitement
+  détruite lorsqu'elle n'est plus utile à l'application.
+Ces variables reçoivent une valeur initiale (quelques unités) et sont
+affichées ainsi que leurs adresses.
+Un processus enfant est créé ; il modifie alors ces variables au niveau des
+dizaines alors que pendant ce temps son parent fait de même avec les
+centaines.
+Après avoir pris soin d'attendre un délai (excessif) pour que chaque processus
+ait le temps d'effectuer ses modifications, chacun d'eux affiche à nouveau
+ces mêmes variables et leurs adresses telles qu'il les voit.
+Vous devez constater que, conformément à l'exercice précédent, l'enfant
+travaille bien sur une copie des données initiales (les unités initialement
+choisies sont conservées) mais qui est désormais distincte de l'original.
+En effet, la modification des dizaines par l'enfant n'affecte pas les
+dizaines vues par le parent, et réciproquement pour les centaines.
+Toutefois, en observant attentivement les adresses de ces variables affichées
+dans les deux processus, vous devez constater un paradoxe apparent :
+  que la classe de stockage soit statique, automatique ou dynamique, une
+  variable placée à une même adresse dans les deux processus semble avoir deux
+  valeurs distinctes !
+
+Bien entendu, il y a une explication : les espaces d'adressages manipulés
+par nos processus sont ``virtuels''.
+Le système d'exploitation qui gère nos processus donne des consignes à la
+MMU (Memory Management Unit) du processeur de la machine informatique pour
+associer les multiples plages d'adresses virtuelles de chaque processus (les
+pages) à des plages de mémoire physique.
+Ainsi, lorsqu'un processus manipule ce qui est désigné par une adresse,
+cette adresse virtuelle est traduite par le processeur en adresse physique
+afin d'accéder à la mémoire physique.
+Dans ces conditions, deux processus peuvent avoir des adresses virtuelles
+identiques (c'est le cas juste après ``fork()'') mais qui correspondent
+à des pages physiques distinctes (le système en effectue une duplication
+après ``fork()'' si nécessaire).
+
+Toutefois, il peut être justifié de souhaiter disposer d'une zone mémoire
+physiquement commune à plusieurs processus ; il faut alors faire la demande
+explicite d'un segment de mémoire partagée au système d'exploitation.
+En complétant le point {1} du programme fourni, vous obtiendrez une
+quatrième variable qui, elle, sera placée dans un tel segment de mémoire
+partagée.
+Comme à l'accoutumée, nous prenons soin de libérer cette ressource au niveau
+du point {2} lors de la terminaison de nos processus.
+
+En reprenant l'examen attentif de ce que produit ce programme concernant
+cette nouvelle variable, vous devez constater quelle est bien partagée et
+que l'effet de chacun des deux processus est bien visible dans l'autre.
+
+Le cloisonnement par défaut des espaces d'adressage des processus est
+essentiel pour garantir l'intégrité du système d'exploitation : un
+processus ne peut se permettre de manipuler directement les données d'un
+autre.
+Seules les applications qui sont explicitement conçues pour communiquer à
+travers un segment de mémoire partagée qui leur est commun en font la demande
+au système (elles doivent alors utiliser des moyens de synchronisation non
+décrits ici).
+
+Documentation à consulter :
+  crs::fork()        --> man 2 fork
+  crs::waitpid()     --> man 2 waitpid
+  crs::mmap_shared() --> man 2 mmap
+  crs::munmap()      --> man 2 munmap
+
+==============================================================================
+prog03_pipe.cpp : Des processus apparentés peuvent communiquer à travers
+                  des tubes anonymes en lieu et place des tubes nommés.
+
+Il s'agit ici de faire apparaître un processus enfant qui produira
+dynamiquement des données et les écrira dans un tube de communication.
+Son parent obtiendra alors ces données en lisant depuis le même tube.
+Puisque les descripteurs de fichier déjà ouverts dans un processus sont
+transmis lors de la création d'un processus enfant, il suffit d'ouvrir un tel
+tube de communication dans le processus initial avant qu'il crée son enfant.
+Dans ces conditions, il n'est plus nécessaire pour les deux processus de
+trouver un moyen d'accéder au même tube (le tube nommé de la séance
+précédente) : un tube anonyme (n'apparaissant pas dans le système de fichiers)
+créé dans le processus initial sera déjà connu et utilisable à l'apparition de
+son processus enfant.
+
+En complétant le point {1} du programme fourni, vous créerez un tel tube de
+communication anonyme (il n'apparaît pas dans le système de fichiers).
+Il est accessible par un tableau de deux descripteurs de fichier ouverts par
+l'appel système ``pipe()''.
+Le premier ``[0]'' permet de lire depuis le tube ; le second ``[1]'' permet
+d'écrire dans le même tube.
+Généralement, lorsque nous accédons à des ressources du système nous nous
+empressons d'envisager leur libération (ici la fermeture du tube).
+Toutefois, exceptionnellement ici, puisque la fermeture de chacun des deux
+descripteurs de fichier à un rôle important dans le déroulement de la
+communication, nous traiterons leur fermeture au moment opportun.
+
+Bien entendu, en l'état, un unique processus n'a aucun intérêt à relire ce
+qu'il a lui même écrit dans ce tube ; il nous faut donc créer un processus
+enfant qui en bénéficiera également.
+En complétant le point {2} du programme fourni, vous ferez apparaître ce
+nouveau processus qu'il faudra au bout du compte attendre au niveau du
+point {3} à la terminaison.
+Le point {4} doit repérer le processus enfant pour lui faire exécuter son
+traitement spécifique.
+Celui-ci doit, quoi qu'il arrive, aboutir au point {5} pour provoquer la
+terminaison de ce processus enfant à la fin de l'alternative, ainsi, la suite
+du programme principal ne concerne que le processus initial (son parent).
+
+Nous décidons arbitrairement dans cet exemple que c'est le processus enfant
+qui écrit dans le tube et son parent qui lit depuis le tube (nous aurions pu
+décider l'inverse).
+Puisqu'à ce stade de l'avancement de leur exécution nos deux processus
+ont accès aux deux descripteurs de fichier de cet unique tube, chacun d'eux
+doit fermer, au niveau des points {6} et {7} du programme fourni, le
+descripteur dont il n'aura pas l'utilité.
+Après cela, chacun d'eux n'accède plus au tube que par le descripteur qui
+correspond à son intention (écriture ou lecture).
+
+Dorénavant, la communication peut commencer.
+Au niveau du point {8}, le processus enfant doit écrire une série de messages
+dans le tube et fermer le descripteur en écriture au niveau du point {9} pour
+signifier qu'il a fini de produire des données.
+De manière complémentaire, son processus parent doit extraire au niveau du
+point {10} une série de messages jusqu'à obtenir la fin-de-fichier.
+Le tube ne pouvant alors plus fournir de données, le descripteur en lecture
+est fermé au point {10} puis qu'il est désormais inutile.
+
+Pour tester ce programme, il suffit de le lancer sans argument :
+  $ ./prog03_pipe
+et vous devriez constater que le processus parent affiche petit à petit les
+messages produits par le processus enfant ; c'est bien ce qui est attendu.
+Intervenez alors après le point {8} du programme fourni pour commenter
+l'appel à ``crs::sleep()'' ; les vingt messages produits par l'enfants vont
+désormais être écrits dans le tube à un rythme très soutenu.
+Relancez le programme et observez attentivement la lecture des messages ; vous
+devriez constater qu'il n'y a plus vingt réceptions distinctes mais que
+plusieurs messages, bien qu'ayant été produits séparément, peuvent être
+extraits en une seule opération !
+Intervenez maintenant au niveau du point {7} afin d'oublier volontairement
+(en la commentant) la fermeture du descripteur en écriture dans le processus
+parent.
+Relancez le programme et constatez que la boucle de lecture du processus
+parent ne se termine plus.
+En effet, la fin-de-fichier n'est jamais détectée puisqu'il existe toujours
+un descripteur ouvert qui permet d'écrire dans le tube : celui que nous venons
+d'oublier de fermer dans le processus parent.
+Le système d'exploitation ignore que notre programme n'a pas l'intention d'y
+écrire ; il estime donc que de nouvelles données peuvent apparaître dans le
+tube à tout moment et s'abstient de nous annoncer le fin-de-fichier.
+
+À travers ces quelques essais vous avez réalisé la démarche usuelle de
+communication par tube anonyme et vérifié quelques propriétés :
+- des processus apparentés peuvent partager l'usage de descripteurs de fichier
+  qui sont ouverts lors de la création du processus enfant,
+- la communication par tube est unidirectionnelle mais la direction est au
+  choix (une communication bidirectionnelle nécessite deux tubes distincts),
+- le contenu d'un tube circule de manière ordonnée mais ne préserve pas les
+  limites des messages,
+- la fermeture de tous les descripteurs en écriture sur le tube est nécessaire
+  à la détection de la fin-de-fichier lors de la lecture.
+
+Documentation à consulter :
+  crs::pipe()    --> man 2 pipe
+  std::array     --> http://en.cppreference.com/w/cpp/container/array
+  crs::fork()    --> man 2 fork
+  crs::waitpid() --> man 2 waitpid
+  crs::exit()    --> man 3 exit
+  crs::close()   --> man 2 close
+  crs::write()   --> man 2 write
+  crs::read()    --> man 2 read
+  crs::sleep()   --> man 2 nanosleep
+
+==============================================================================
+prog04_pipe_redir_exec.cpp : Les tubes anonymes facilitent la réutilisation
+                             de programmes déjà existants par redirection
+                             d'entrées/sorties et recouvrement dans un
+                             processus enfant.
+
+Il s'agit ici de réutiliser plusieurs des notions découvertes lors de cette
+séance et de la précédente dans une application très simple.
+Il n'y aura aucune nouveauté par rapport à ce qui a déjà été expérimenté
+dans les exercices précédents, c'est pourquoi les commentaires seront bien
+moins détaillés ; vous devrez faire preuve d'autonomie et d'initiative pour
+réutiliser vos acquis.
+
+Le programme à réaliser peut être invoqué avec un ou deux arguments sur sa
+ligne de commande ; nous traiterons en premier lieu le cas d'un seul.
+Ce paramètre représente le nom d'un fichier qui est censé contenir des données
+compressées au format "gzip".
+Pour expérimenter, un tel fichier peut être produit par la commande suivante :
+  $ ls -l | gzip > output_file1.gz
+(la liste détaillée du contenu du répertoire courant, affichée par la commande
+ ``ls -l'', est compressée et stockée dans ``output_file1.gz'').
+En exécutant votre programme de cette façon :
+  $ ./prog04_pipe_redir_exec output_file1.gz
+ce dernier doit produire sur sa sortie standard le contenu décompressé du
+fichier en question.
+Pour réaliser ce travail, nous utiliserons le recouvrement d'un processus
+enfant par la commande "gunzip".
+En effet, cette commande, lorsqu'elle est invoquée sans autre argument, lit
+des données compressées sur son entrée standard et en produit une version
+décompressée sur sa sortie standard.
+Il faudra préalablement rediriger l'entrée standard de ce processus enfant
+pour qu'elle corresponde au fichier désigné sur la ligne de commande.
+Il faudra également avoir préalablement pris soin de mettre en place un tube
+anonyme dans son processus parent, afin de rediriger la sortie standard du
+processus enfant vers ce tube.
+Dans ces conditions, le processus parent n'a plus qu'à obtenir les données
+décompressées depuis le tube et les afficher sur sa sortie standard.
+Toutes les opérations nécessaire à cette réalisation doivent prendre place au
+niveau des points marqués {A} dans le programme fourni.
+
+Lorsque vous aurez vérifié que votre programme fonctionne comme attendu dans
+sa première version, vous pourrez envisager de prendre en compte le second
+argument de sa ligne de commande.
+En exécutant votre programme de cette façon :
+  $ ./prog04_pipe_redir_exec output_file1.gz output_file2.bz2
+ce dernier doit extraire le contenu décompressé du premier fichier mais doit
+désormais produire le second fichier qui contiendra ce contenu recompressé au
+format "bzip2" (traduction du format "gzip" vers le format "bzip2").
+Pour réaliser cette nouvelle étape, nous utiliserons le recouvrement d'un
+second processus enfant par la commande "bzip2".
+En effet, cette commande, lorsqu'elle est invoquée sans autre argument, lit
+des données sur son entrée standard, et en produit une version compressée
+sur sa sortie standard.
+Il faudra préalablement rediriger la sortie standard de ce second processus
+enfant pour qu'elle corresponde au second fichier désigné sur la ligne de
+commande.
+Il faudra également avoir préalablement pris soin de rediriger l'entrée
+standard du second processus enfant vers ce tube.
+Ainsi, dans cette nouvelle configuration (deux arguments passés sur la ligne
+de commande) le tube de communication relie directement la sortie standard du
+premier processus enfant à l'entrée standard du second.
+Leur processus parent ne voit même pas passer les données décompressées ; il
+ne sert qu'à coordonner la mise en place du tube de communication et la
+création des processus enfants qui réalisent l'essentiel du travail.
+Toutes les opérations nécessaires à cette nouvelle étape de la réalisation
+doivent prendre place au niveau du point {B} dans le programme fourni.
+Vous pourrez vérifier que votre programme produit bien un fichier avec le
+contenu attendu en utilisant la commande :
+  $ bunzip2 < output_file2.bz2
+qui doit afficher la liste détaillée du contenu du répertoire courant qui
+avait initialement servi à produire le contenu du fichier ``output_file1.gz''.
+
+Documentation à consulter :
+  man 1 gunzip
+  man 2 bzip2
+  crs::pipe()    --> man 2 pipe
+  crs::fork()    --> man 2 fork
+  crs::waitpid() --> man 2 waitpid
+  crs::close()   --> man 2 close
+  crs::openR()   --> man 2 open
+  crs::openW()   --> man 2 open
+  crs::dup2()    --> man 2 dup2
+  crs::exec()    --> man 2 execve
+  crs::read()    --> man 2 read
+
+==============================================================================

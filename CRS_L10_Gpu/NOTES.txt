@@ -1,0 +1,119 @@
+
+{harrouet@menthe3}~/CRS_L10_Gpu$ ./prog01_monte_carlo cpu
+using 4 threads
+CPU initialisation: 0.000123978 seconds
+CPU computation:    1.62129 seconds
+1000000000 points, 785400056 inside
+estimated=3.141600224, delta=7.57041020671e-06
+GPU initialisation: 0.111003 seconds
+GPU computation:    0.0990531 seconds
+1000000000 points, 785383193 inside
+estimated=3.141532772, delta=-5.9881589793e-05
+{harrouet@menthe3}~/CRS_L10_Gpu$ ./prog01_monte_carlo cpu big
+using 4 threads
+CPU initialisation: 0.000120878 seconds
+CPU computation:    15.9478 seconds
+10000000000 points, 7853991631 inside
+estimated=3.1415966524, delta=3.99881020696e-06
+GPU initialisation: 0.11966 seconds
+GPU computation:    0.929555 seconds
+10000000000 points, 7853984465 inside
+estimated=3.141593786, delta=1.13241020694e-06
+
+
+{harrouet@laurier25}~/CRS_L10_Gpu$ ./prog02_linear_combination cpu
+using 4 threads
+CPU initialisation: 0.000185966 seconds
+CPU computation:    0.00524688 seconds for 1000000 elements
+GPU initialisation: 0.179026 seconds
+GPU computation:    0.0139692 seconds for 1000000 elements
+{harrouet@laurier25}~/CRS_L10_Gpu$ ./prog02_linear_combination cpu big
+using 4 threads
+CPU initialisation: 0.000170946 seconds
+CPU computation:    0.0403211 seconds for 50000000 elements
+GPU initialisation: 0.171216 seconds
+GPU computation:    0.253066 seconds for 50000000 elements
+
+{harrouet@laurier25}~/CRS_L10_Gpu$ ./prog02_linear_combination cpu
+using 4 threads
+CPU initialisation: 0.00019002 seconds
+CPU computation:    0.00132799 seconds for 1000000 elements
+GPU initialisation: 0.0992649 seconds
+GPU computation:    0.000879049 seconds for 1000000 elements NO_COPY
+!!! CPU/GPU mismatch for 50000000 elements !!!
+{harrouet@laurier25}~/CRS_L10_Gpu$ ./prog02_linear_combination cpu big
+using 4 threads
+CPU initialisation: 0.000169992 seconds
+CPU computation:    0.0398011 seconds for 50000000 elements
+GPU initialisation: 0.100536 seconds
+GPU computation:    0.00749612 seconds for 50000000 elements NO_COPY
+!!! CPU/GPU mismatch for 50000000 elements !!!
+
+
+
+
+Retirer les limites sur SOA permet la vectorisation mais perfs similaires.
+
+------------------------------------------------------------------------------
+
+laurier25: i5-4590, 6 MB L3 (4C)
+           Quadro K620, 2048 MB (384C)
+
+./prog01_AOS cpu     (   100'000 points, 10'000 steps ) [ 1 x   2.67 MB ]
+CPU computation:   0.724718 seconds --> 1379.85  Mp/s
+GPU computation:   2.43474  seconds -->  410.721 Mp/s
+
+./prog02_SOA cpu     (   100'000 points, 10'000 steps ) [ 7 x   0.38 MB ]
+CPU computation:   0.703698 seconds --> 1421.06  Mp/s
+GPU computation:   0.41331  seconds --> 2419.49  Mp/s
+
+./prog01_AOS cpu big ( 5'000'000 points,    200 steps ) [ 1 x 133.51 MB ]
+CPU computation:   2.98642  seconds -->  334.849 Mp/s
+GPU computation:   2.61744  seconds -->  382.052 Mp/s
+
+./prog02_SOA cpu big ( 5'000'000 points,    200 steps ) [ 7 x  19.07 MB ]
+CPU computation:   1.87843  seconds -->  532.36  Mp/s
+GPU computation:   1.52054  seconds -->  657.662 Mp/s
+
+------------------------------------------------------------------------------
+
+winchose: i7-3840QM, 6 MB L3 (4C, 8T)
+          Quadro K2000M, 2048 MB (384C)
+
+./prog01_AOS cpu     (   100'000 points, 10'000 steps ) [ 1 x   2.67 MB ]
+CPU computation:   1.00187  seconds -->  998.136 Mp/s
+GPU computation:   3.19401  seconds -->  313.086 Mp/s
+
+./prog02_SOA cpu     (   100'000 points, 10'000 steps ) [ 7 x   0.38 MB ]
+CPU computation:   0.975979 seconds --> 1024.61  Mp/s
+GPU computation:   1.39368  seconds -->  717.526 Mp/s
+
+./prog01_AOS cpu big ( 5'000'000 points,    200 steps ) [ 1 x 133.51 MB ]
+CPU computation:   5.93101  seconds -->  168.605 Mp/s
+GPU computation:   3.19869  seconds -->  312.628 Mp/s
+
+./prog02_SOA cpu big ( 5'000'000 points,    200 steps ) [ 7 x  19.07 MB ]
+CPU computation:   3.74479  seconds -->  267.038 Mp/s
+GPU computation:   1.58562  seconds -->  630.669 Mp/s
+
+------------------------------------------------------------------------------
+nowin: CPU E5-2697 v2, 30 MB L3 (2x12C, 2x24T)
+       GeForce GTX TITAN X, 12 GB (3072C)
+
+./prog01_AOS cpu     (   100'000 points, 10'000 steps ) [ 1 x   2.67 MB ]
+CPU computation:   0.306221 seconds --> 3265.62  Mp/s
+GPU computation:   0.376838 seconds --> 2653.66  Mp/s
+
+./prog02_SOA cpu     (   100'000 points, 10'000 steps ) [ 7 x   0.38 MB ]
+CPU computation:   0.289154 seconds --> 3458.36  Mp/s
+GPU computation:   0.109529 seconds --> 9130     Mp/s
+
+./prog01_AOS cpu big ( 5'000'000 points,    200 steps ) [ 1 x 133.51 MB ]
+CPU computation:   1.7577   seconds -->  568.925 Mp/s
+GPU computation:   0.577295 seconds --> 1732.22  Mp/s
+
+./prog02_SOA cpu big ( 5'000'000 points,    200 steps ) [ 7 x  19.07 MB ]
+CPU computation:   1.02753  seconds -->  973.21  Mp/s
+GPU computation:   0.404264 seconds --> 2473.63  Mp/s
+
+------------------------------------------------------------------------------

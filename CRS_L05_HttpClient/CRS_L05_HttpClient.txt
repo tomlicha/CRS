@@ -1,0 +1,321 @@
+==============================================================================
+Client HTTP/HTTPS                               (Fabrice Harrouet, module CRS)
+==============================================================================
+
+Nous réutilisons ici nos connaissances en matière de client TCP dans le
+contexte du protocole HTTP (et HTTPS).
+Il s'agit en effet d'un protocole applicatif très largement utilisé et
+reposant sur le protocole de transport TCP.
+Comme dans toute architecture TCP nous distinguons les rôles ``client'' et
+``serveur'' : cet exercice se focalise essentiellement sur le rôle client.
+
+Il s'agira principalement de :
+ - expérimenter ``à la main'' le fonctionnement de HTTP,
+ - réaliser un programme simpliste qui permette d'obtenir, éventuellement via
+   un proxy, un document en HTTP ou HTTPS (semblable aux outils en ligne de
+   commande wget, curl, fetch...).
+
+La consultation de la documentation est très importante et fait partie
+intégrante du travail.
+Pour ceci vous disposez des pages de manuel indiquées à chaque exercice ainsi
+que des documents disponibles sur :
+  http://www.enib.fr/~harrouet/courses.html
+En particulier, le document ``Memo_HTTP.pdf'' devrait beaucoup vous guider
+puisqu'il décrit la structure des requêtes et des réponses HTTP.
+Le fichier d'entête ``crsUtils.hpp'' doit également être consulté très
+régulièrement puisqu'il fournit, au delà de quelques fonctionnalités
+utilitaires, la mise à disposition dans une forme facilitée pour les étudiants
+(limitation des pointeurs, des conversions de types, utilisation de chaînes
+et vecteurs C++, contrôle des échecs...) des appels et fonctionnalités
+systèmes que nous utiliserons.
+
+Vous êtes censés savoir refaire et réutiliser cet exercice lors des
+séances ultérieures ; n'hésitez donc pas à poser des questions lors de cette
+séance et à le refaire tout seul ensuite pour vous entraîner.
+
+==============================================================================
+A) Client HTTP simpliste
+
+Les données véhiculées par le protocole HTTP peuvent être de nature quelconque
+(texte, image, vidéo...).
+Toutefois, HTTP est un protocole en mode texte ; ceci signifie que les
+entêtes des requêtes et des réponses sont des lignes de texte.
+Bien que ce soit inutile dans la pratique, ceci donne l'opportunité à un être
+humain de rédiger de telles lignes et de les lire.
+Qui plus est, ce protocole applicatif utilise le protocole de transport TCP.
+Ces propriétés nous permettent d'utiliser l'outil nc comme un client qui se
+connecte en TCP à un serveur HTTP pour expérimenter ``à la main'' le
+dialogue selon le protocole HTTP.
+
+À titre d'exercice, nous allons chercher à obtenir le contenu de l'URI
+  http://www.enib.fr/~harrouet/courses.html
+Ceci doit se comprendre comme : se connecter au serveur HTTP ``www.enib.fr''
+pour lui demander la ressource ``/~harrouet/courses.html''
+Sauf indication contraire, le port par défaut d'un serveur HTTP est le port
+TCP 80.
+Nous invoquons donc la commande suivante :
+  $ nc www.enib.fr 80
+
+Une fois connecté, le client doit formuler sa requête (consultez attentivement
+l'exemple de requête GET du document ``Memo_HTTP.pdf'').
+Nous saisissons alors la première ligne de la requête HTTP :
+  GET /~harrouet/courses.html HTTP/1.1
+En HTTP/1.1, le champ ``Host:'' est obligatoire dans la requête :
+  Host: www.enib.fr:80
+(nb: le port aurait pu être omis ici puisqu'il a la valeur par défaut).
+En HTTP/1.1, une même connexion peut resservir pour plusieurs requêtes
+successives alors qu'en HTTP/1.0, chaque connexion était fermée par le serveur
+après l'envoi de la réponse HTTP.
+Cet ancien mode de fonctionnement est considéré obsolète mais est toutefois
+légèrement plus facile à utiliser dans le cadre de nos expérimentations ; il
+suffit en effet de lire la réponse jusqu'à obtenir la fin-de-fichier sur la
+connexion.
+Nous en réclamons l'usage ainsi :
+  Connection: close
+L'entête de notre requête HTTP contient maintenant le minimum nécessaire
+(de nombreuses autres options sont disponibles) ; nous signalons alors sa fin
+en ajoutant une ligne vide :
+  <-- [touche Return]
+Dès lors que le serveur reçoit cette ligne vide, il sait que l'entête de la
+requête a été complètement exprimé, il peut alors produire sa réponse.
+Toujours en vous référant au document ``Memo_HTTP.pdf'', vous devrez
+reconnaître dans le terminal un entête HTTP de réponse suivi du contenu utile
+(une page HTML ici).
+Remarquez notamment que cet entête de réponse à une structure semblable à
+celle de la requête :
+ - une première ligne ayant une forme particulière,
+ - un nombre variable de lignes d'options (``Nom_du_champ: valeur...''),
+ - une ligne vide marquant la fin de l'entête.
+Le contenu utile de la réponse commence immédiatement après cette ligne vide
+de fin d'entête, et s'étend jusqu'à la fin-de-ficher (grâce à l'usage de
+l'option ``Connection: close'').
+
+Cette première expérimentation est suffisante pour écrire un programme client
+très simple permettant de télécharger une ressource avec le protocole HTTP.
+Le début du programme fourni commence par interpréter les arguments de la
+ligne de commande et affiche les éléments extraits de l'URI (l'adresse de la
+ressource HTTP).
+  $ ./prog_http_client http://www.enib.fr/~harrouet/courses.html output_file
+  protocol=http
+  hostname=www.enib.fr
+  port=80
+  resource=/~harrouet/courses.html
+  --> writing to 'output_file'
+Bien entendu, en l'état ce programme n'a aucun autre effet que cet affichage.
+
+En complétant le points {A-1}, {A-2} et {A-3} vous réaliserez les opérations
+usuelles consistant à établir et fermer une connexion TCP vers l'hôte et le
+port désignés.
+
+Le point {A-4} revient à produire des lignes de texte semblables à ce que vous
+avez précédemment saisi dans nc pour formuler la requête HTTP (ce qui concerne
+l'usage d'un proxy sera ignoré pour l'instant).
+Puisque notre client HTTP pourra à terme s'adresser à des serveurs HTTP de
+toutes sortes, il est recommandé de terminer les lignes de texte par "\r\n"
+plutôt que simplement "\n" au cas où un tel serveur fonctionnerait sous
+Windows (ce système code les fins de ligne avec ces deux caractères).
+
+Au niveau du point {A-5} il faudra recevoir, ligne par ligne, l'entête de la
+réponse HTTP.
+Dans cet exemple simpliste nous ne chercherons pas à interpréter le contenu de
+ces lignes ; la seule qui nous intéresse est la dernière (la ligne vide) car
+nous savons que tous ce que nous obtiendrons au-delà sera le contenu utile de
+la réponse (la ressource réclamée).
+
+Il ne reste plus alors qu'à compléter le point {A-6} afin de recopier tout ce
+qui nous parvient sur la connexion vers le fichier de notre choix.
+Une fois la fin-de-fichier atteinte sur la connexion (nous avons réclamé
+l'option ``Connection: close'' dans la requête), le fichier obtenu contient
+enfin le contenu de la ressource réclamée.
+
+Relancez le programme et vérifiez que le fichier obtenu contient bien le
+document attendu (une page HTML listant les documents de cours).
+
+Utilisez à nouveau ce programme pour réclamer la ressource
+  http://www.enib.fr/images/logo-enib-accueil.jpg
+et vérifiez que le fichier obtenu contient bien l'image attendue (avec la
+commande ``display output_file'' par exemple, ou en cliquant dessus).
+
+En l'état, notre réalisation montre que quelques lignes de code très simples
+permettent d'obtenir des ressources quelconques fournies par un serveur HTTP.
+Même si le protocole est en mode texte (les entêtes sont des lignes de texte),
+les données transmises peuvent être de nature quelconque.
+
+Documentation à consulter :
+  Memo_HTTP.pdf
+  crs::gethostbyname() --> man 3 gethostbyname
+  crs::socket()        --> man 2 socket
+  crs::connect()       --> man 2 connect
+  crs::close()         --> man 2 close
+  crs::send()          --> man 2 send
+  crs::recvLine()      --> man 2 recv
+  crs::openW()         --> man 2 open
+  crs::writeAll()      --> man 2 write
+
+==============================================================================
+B) HTTP à travers un proxy
+
+Jusqu'alors, nous n'avons pu expérimenter qu'avec le serveur ``www.enib.fr''.
+En effet, la politique de sécurité de l'établissement n'autorise une connexion
+directe à un serveur que si ce dernier est situé dans l'établissement.
+Pour accéder à l'extérieur, il faut s'adresser explicitement à un proxy HTTP
+qui relaiera (ou non) nos requêtes vers le serveur visé.
+Le fonctionnement est toutefois très similaire à ce que nous avons vu
+jusqu'alors (voir l'utilisation d'un proxy dans ``Memo_HTTP.pdf'') ; il n'y a
+que deux différences :
+ - le client se connecte en TCP au proxy (et non au serveur),
+ - la ressource réclamée dans la première ligne de la requête à la forme de
+   l'URI complète (et non seulement ce qui suit la désignation du serveur).
+
+Reprenons alors l'expérimentation pour réclamer la ressource
+  http://www.stroustrup.com/C++11FAQ.html
+à l'aide de l'utilitaire nc en s'adressant au proxy de l'ENIB (port 3128).
+  $ nc proxy.enib.fr 3128
+  GET http://www.stroustrup.com/C++11FAQ.html HTTP/1.1
+  Host: www.stroustrup.com:80
+  Connection: close
+  <-- [touche Return]
+sans oublier la ligne vide pour terminer l'entête de la requête.
+Vous devriez constater une réponse dont la forme est similaire à notre
+expérimentation précédente.
+
+Le programme fourni détecte la présence d'une variable d'environnement
+``http_proxy'' qui indique si l'usage d'un proxy est requis.
+Pour initialiser cette variable avant de lancer votre programme, faites comme
+ceci :
+  $ export http_proxy=http://proxy.enib.fr:3128/
+Désormais, les programmes lancés depuis ce terminal, s'ils décident de
+consulter cette variable d'environnement (avec ``getenv()''), auront
+connaissance de ce réglage.
+Remarquez que dans le code fourni, les variables ``connectHost'' et
+``connectPort'' désignent soit le serveur visé soit le proxy selon ce réglage.
+
+Vous pouvez dès lors compléter le point {B-1} du code fourni afin d'adapter la
+formulation de la requête à l'éventuel usage d'un proxy.
+Si le proxy est utilisé (``proxyPort'' n'est pas nul), l'entête doit
+mentionner le contenu de la variable ``uri'' plutôt que celui de ``resource''.
+
+Testez alors cette nouvelle fonctionnalité de votre programme en essayant
+de lui faire récupérer la ressource
+  http://www.stroustrup.com/C++11FAQ.html
+qui doit fournir une page HTML, et la ressource
+  http://www.stroustrup.com/Bjarne.jpg
+qui doit fournir une image.
+
+Vérifiez que si vous retirez l'usage du proxy avec la commande
+  $ unset http_proxy
+ces mêmes ressources deviennent inaccessibles.
+En revanche, les ressources situées sur ``www.enib.fr'' doivent toujours
+pouvoir être récupérées (que le proxy soit utilisé ou non).
+
+En l'état, notre réalisation montre que l'usage d'un proxy n'apporte presque
+pas de complication au code permettant d'obtenir des ressources quelconques
+fournies par un serveur HTTP.
+Cette nouvelle fonctionnalité permet désormais à notre programme d'interagir
+avec des serveurs situés ``au bout du monde'' même si l'usage d'un proxy HTTP
+est imposé par la politique de sécurité de l'établissement.
+
+Documentation à consulter :
+  Memo_HTTP.pdf
+
+==============================================================================
+C) Client HTTP/HTTPS
+
+Lorsqu'une URI commence par le préfixe ``https://'', ceci signifie que nous
+faisons usage d'une communication sécurisée en HTTPS.
+Comme indiqué dans le document ``Memo_HTTP.pdf'', ceci revient simplement à
+réaliser le même dialogue qu'en HTTP mais en s'appuyant sur une connexion SSL.
+Une telle connexion SSL utilise un procédé applicatif pour encapsuler une
+connexion TCP afin d'y ajouter notamment des services de chiffrement et
+d'authentification.
+Les principes de ces services seront présentés en cours suivant le document
+``Chiffrement_Authentification.pdf''.
+La mise en oeuvre de SSL est détaillée dans le document ``SSL_HTTPS.pdf'' mais
+le fichier utilitaire ``crsUtils.hpp'' nous propose d'en cacher les détails et
+ainsi faciliter la réalisation dans le cadre de cet exercice.
+
+La partie du code source fourni qui concerne le protocole HTTPS contient déjà
+l'initialisation et la destruction du contexte SSL et de l'objet de
+communication qui encapsule notre connexion TCP.
+Il vous suffit alors de compléter les points {C-1}, {C-2} et {C-3} de manière
+très semblable aux points {A-4}, {A-5} et {A-6} mais en faisant usage de
+l'objet de communication SSL plutôt que de la connexion TCP directement.
+Nous ignorons pour l'instant l'éventualité du recours à un proxy ; veuillez
+remarquer que l'entête de la requête HTTPS est identique qu'il y ait un
+proxy ou non (ce n'était pas le cas en HTTP).
+
+Assurez-vous de ne pas faire usage du proxy
+  $ unset http_proxy
+et testez alors cette nouvelle fonctionnalité de votre programme en essayant
+de lui faire récupérer la ressource
+  https://webmail.enib.fr/src/login.php
+qui doit fournir une page HTML, et la ressource
+  https://webmail.enib.fr/images/sm_logo.png
+qui doit fournir une image.
+
+En l'état, notre réalisation montre que le recours à une communication
+sécurisée en HTTPS ne modifie pas profondément la structure du code par
+rapport à ce que nous savions faire avec HTTP.
+
+Documentation à consulter :
+  Memo_HTTP.pdf
+  SSL_HTTPS.pdf
+  crs::sslConnect()  --> man 3 SSL_connect
+  crs::sslClose()    --> man 3 SSL_free
+  crs::sslSend()     --> man 3 SSL_write
+  crs::sslRecvLine() --> man 3 SSL_read
+  crs::openW()       --> man 2 open
+  crs::writeAll()    --> man 2 write
+  crs::close()       --> man 2 close
+
+==============================================================================
+D) HTTPS à travers un proxy
+
+À l'étape précédente nous ne pouvions accéder qu'à des ressources HTTPS
+disponibles à l'intérieur de l'établissement car nous ne faisions pas usage
+du proxy.
+Comme indiqué dans le document ``Memo_HTTP.pdf'', une communication HTTPS
+peut être relayée par un proxy mais ceci nécessite un dialogue hybride : le
+client doit d'abord s'adresser ``en clair'' au proxy pour lui demander
+d'établir une connexion avec le serveur visé, puis, en cas de succès, la
+suite de l'échange est simplement le dialogue chiffré dans SSL tel que déjà
+traité dans l'étape précédente.
+Une fois que le proxy a accepté de relayer la connexion, il transmet
+aveuglément et de manière bidirectionnelle les informations chiffrées de
+la connexion SSL ; il n'a donc aucune connaissance du contenu de ce dialogue
+(seuls le client et le serveur savent le chiffrer et le déchiffrer).
+
+Pour rendre ceci effectif depuis notre code, il suffit de compléter le point
+{D-1} du programme fourni.
+Il ne s'agit que d'un échange ``en clair'' sur la connexion TCP qui nous relie
+au proxy pour envoyer une requête HTTP ``CONNECT'' et en obtenir la réponse
+(une suite de lignes de texte juqu'à une ligne vide).
+
+Désormais, vous pouvez réclamer à nouveau l'usage du proxy
+  $ export http_proxy=http://proxy.enib.fr:3128/
+et tester alors cette nouvelle fonctionnalité de votre programme en essayant
+de lui faire récupérer la ressource
+  https://gcc.gnu.org/
+qui doit fournir une page HTML, et la ressource
+  https://gcc.gnu.org/img/gccegg-65.png
+qui doit fournir une image.
+
+Reprenez enfin tous les tests de votre programme afin de vérifier qu'il est
+bien en mesure de récupérer des informations quelconques que ce soit en
+HTTP ou HTTPS, avec ou sans proxy.
+Il se contente de sauvegarder le contenu obtenu dans un fichier et
+s'apparente alors à une version simpliste des outils en ligne de commande
+wget, curl, fetch...
+
+Bien entendu, la structure d'un tel programme peut être utilisée dans le cadre
+d'applications très différentes qui cherchent juste à interagir depuis des
+sites distants pour lesquels les communications directes sur des ports TCP ou
+UDP quelconques ne sont pas autorisées (l'usage de HTTP et HTTPS est en
+général autorisé, éventuellement à travers un proxy).
+
+Documentation à consulter :
+  Memo_HTTP.pdf
+  crs::send()     --> man 2 send
+  crs::recvLine() --> man 2 recv
+
+==============================================================================

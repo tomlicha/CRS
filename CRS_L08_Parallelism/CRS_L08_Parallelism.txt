@@ -1,0 +1,466 @@
+==============================================================================
+Notions élémentaires de parallélisme            (Fabrice Harrouet, module CRS)
+==============================================================================
+
+Il s'agit d'une série d'exercices en rapport avec l'utilisation de threads
+pour exploiter les multiples unités de calcul des machines informatiques.
+Au cours de cette séance nous nous familiariserons avec l'usage des threads
+et de leurs moyens de synchronisation.
+
+Chaque programme est volontairement très simple afin de se focaliser sur la
+découverte des services proposés sans être distrait par les détails annexes
+d'une quelconque application particulière.
+Il convient de traiter ces exercices tranquillement, en s'interrogeant à
+chaque fois sur le propos de la fonctionnalité particulière qui est mise en
+avant.
+Il ne sert strictement à rien d'enchaîner les exercices sans les comprendre
+en se contentant de :
+  ``ça compile et ça ne plante pas donc j'ai bon, je passe à la suite''
+
+La consultation de la documentation est très importante et fait partie
+intégrante du travail.
+Pour ceci vous disposez des pages de manuel indiquées à chaque exercice ainsi
+que des documents disponibles sur :
+  http://www.enib.fr/~harrouet/courses.html
+Le document ``Threads.pdf'' contient notamment des informations sur l'API
+Posix (en C) des threads et les ressources en lignes suivantes :
+  http://en.cppreference.com/w/cpp/thread
+  http://en.cppreference.com/w/cpp/atomic
+apporteront tous les détails de mise en oeuvre en C++.
+Le fichier d'entête ``crsUtils.hpp'' doit également être consulté très
+régulièrement puisqu'il fournit, au delà de quelques fonctionnalités
+utilitaires, la mise à disposition dans une forme facilitée pour les étudiants
+(limitation des pointeurs, des conversions de types, utilisation de chaînes
+et vecteurs C++, contrôle des échecs...) des appels et fonctionnalités
+systèmes que nous utiliserons.
+
+Vous êtes censés savoir refaire et réutiliser tous ces exercices lors des
+séances ultérieures ; n'hésitez donc pas à poser des questions lors de cette
+séance et à les refaire tout seul ensuite pour vous entraîner.
+
+==============================================================================
+prog01_create_join.cpp : Les threads permettent l'exécution en parallèle de
+                         plusieurs traitements dans le même processus.
+
+En complétant le point {1} du programme fourni, vous démarrerez un nouveau
+thread qui exécutera une fonction en parallèle du déroulement du programme
+principal.
+Cette fonction recevra des paramètres qui lui permettront de partager des
+données avec le programme principal.
+Elle se contente ici d'effectuer quelques itérations en modifiant une
+variable du programme principal.
+
+Lorsqu'un programme démarre un thread, il doit tôt ou tard en attendre
+la terminaison ; il s'agit d'un moyen simple de s'assurer qu'il a bien fini
+d'exécuter tout son algorithme et donc qu'il a produit toutes les données
+qu'il devait produire.
+Ici le programme principal poursuit son traitement (quelques itérations
+inutiles) et lorsqu'il a besoin d'exploiter le résultat du travail du
+thread il réalise cette opération d'attente.
+Ceci prend place au niveau du point {2} du programme fourni.
+Désormais, puisque le thread a terminé son exécution, les données qu'il a
+produites peuvent être exploitées (une simple variable ici).
+nb : dans les sujets réalisant des serveurs TCP multi-threads, nous avions
+     explicitement placé les threads de dialogue dans l'état ``détaché'' afin
+     de signifier que cette opération d'attente n'aurait jamais lieu.
+     En effet, le programme principal n'avait rien à attendre de la
+     terminaison d'un tel thread et n'avait d'ailleurs aucun indice pour
+     savoir quand elle aurait lieu.
+
+Pour tester ce programme il suffit de le lancer par son nom.
+Vous devriez constater, grâce aux affichages dans le terminal, que les
+exécutions du programme principal et du thread ont bien lieu simultanément.
+En passant sur la ligne de commande le nombre d'itérations du thread,
+vous verrez que le programme principal peut réaliser cette opération alors
+que le thread a déjà eu le temps de se terminer (l'attente est alors
+instantanée).
+Dans tous les cas, ce n'est qu'après cette opération d'attente que
+les données produites par le thread deviennent raisonnablement exploitables
+par le programme principal (elles ne sont plus en cours de modification).
+
+Ce premier exemple illustre une différence fondamentale avec le parallélisme
+à base de multiples processus (déjà vu dans les précédents sujets).
+S'il fallait demander explicitement au système d'exploitation des moyens de
+faire communiquer les multiples processus (segments partagés, tubes...), ceci
+n'est pas nécessaire dans le cas d'un programme multithreads.
+Tous ces threads font partie du même processus et partagent le même espace
+d'adressage ; ce qui est fait par les uns est immédiatement perceptible par
+les autres (au sein du même processus).
+
+Documentation à consulter :
+  Threads.pdf
+  std::thread         --> http://en.cppreference.com/w/cpp/thread/thread
+  std::thread::join() --> http://en.cppreference.com/w/cpp/thread/thread
+
+==============================================================================
+prog02_multiple.cpp : Plusieurs threads peuvent travailler simultanément
+                      sur des données distinctes.
+
+Nous voulons maintenant lancer plusieurs threads exécutant tous la même
+fonction mais travaillant chacun sur des données qui lui sont propres.
+Comme prétexte ici, chaque thread se contentera d'afficher plusieurs fois
+(avec des pauses) un mot de la ligne de commande.
+Puisque plusieurs threads devront travailler simultanément, il n'est pas
+question d'attendre chacun d'eux juste après l'avoir lancé ; ceci reviendrait
+à les faire s'exécuter en séquence (le suivant ne serait lancé que lorsque
+le précédent serait terminé).
+
+En complétant le point {1} du programme fourni, vous démarrerez tous les
+threads nécessaires.
+Chacun d'eux recevra des paramètres permettant de désigner le travail
+spécifique qui lui est confié.
+Ces threads seront mémorisés (dans un vecteur ici) afin de procéder à leur
+attente ultérieurement.
+
+C'est justement en complétant le point {2} du programme fourni que cette
+opération d'attente aura lieu sur chacun des threads ; c'est la raison pour
+laquelle nous avions besoin de tous les mémoriser.
+L'ordre dans lequel nous parcourons les threads pour les attendre importe
+peu car il faut que tous soient terminés avant de passer à la suite.
+
+Pour tester ce programme il suffit de le lancer en choisissant quelques mots
+sur sa ligne de commande:
+  $ ./prog02_multiple a bb ccc dddd eeeee ffffff
+Vous devriez constater, grâce aux affichages dans le terminal, que toutes les
+exécutions des threads sont simultanées (ou entremêlées).
+Bien que dans ce cas la fonction soit identique pour tous les threads, chacun
+travaille bien sur les données qui lui ont été confiées et ce n'est que
+lorsqu'ils ont tous terminé leur exécution que le programme principal
+se poursuit au delà de l'étape des attentes.
+
+Cet exemple illustre donc le fait qu'un problème global peut être découpé
+en plusieurs parties traitées dans des threads distincts.
+Lorsque toutes ces parties sont traitées, le problème est globalement
+traité.
+
+Documentation à consulter :
+  Threads.pdf
+  std::thread --> http://en.cppreference.com/w/cpp/thread/thread
+  std::vector --> http://en.cppreference.com/w/cpp/container/vector
+
+==============================================================================
+prog03_synchronisation.cpp : Lorsque plusieurs threads manipulent des données
+                             communes des opérations de synchronisation sont
+                             nécessaires pour en garantir l'intégrité.
+
+Dans cet exercice, nous reprenons la démarche qui consiste à lancer plusieurs
+threads en parallèle et à attendre qu'ils aient tous terminé leur exécution.
+À cette nouvelle occasion, ils utiliseront à la fois des données qui leur sont
+propres et des données partagées.
+La distinction entre les données propres à chaque thread (qu'il est seul à
+manipuler donc) et celles qui sont partagées par l'ensemble est justement
+un point crucial dans toute démarche de parallélisation.
+Pour des raisons pédagogiques, à partir de maintenant nous nous efforcerons de
+distinguer systématiquement ces différentes catégories de données en les
+regroupant dans des structures de données explicitement définies à cet effet
+dans le programme fourni.
+Jusqu'alors, chaque thread manipulé dans nos exemples était entièrement
+désigné par un objet ``std::thread'' ; désormais, notre structure
+``ThreadData'' contient bien entendu un tel objet mais peut également
+contenir toutes les informations que nous souhaitons associer à un thread
+en particulier (l'entier ``result'' ici).
+De la même façon, la structure ``SharedData'' représente l'ensemble des
+données qui peuvent être accédées par les threads du problème.
+En particulier son vecteur de structures ``ThreadData'' joue le rôle
+du vecteur de ``std::thread'' que nous utilisions dans les exemples
+précédents.
+Les autres champs sont spécifiques au problème traité (des entiers et des
+objets de synchronisation ici).
+En suivant cette démarche il suffit de transmettre à chaque thread une
+référence sur la structure ``SharedData'' et un indice entier pour qu'il
+puisse avoir à la fois accès aux données partagées du problème et aux données
+qui lui sont propres (l'indice lui permet de retrouver dans le vecteur la
+structure ``ThreadData'' qui le concerne).
+
+En complétant le point {1} du programme fourni, vous démarrerez tous les
+threads du problème en leur transmettant les arguments attendus.
+Attention, la structure ``SharedData'' doit être passée par référence et non
+par recopie afin qu'elle reste bien unique dans le problème.
+Remarquez comment au début de la fonction ``threadTask()'' on s'empresse
+d'accéder à la structure ``ThreadData'' qui est propre au thread courant.
+
+En complétant le point {2} du programme fourni, vous réaliserez l'opération
+d'attente sur tous les threads.
+La nouveauté ici vient du fait qu'après l'attente de chacun des threads nous
+récupérons une information (l'entier ``result'') qu'il a mise à jour dans sa
+propre structure ``ThreadData''.
+L'accès à cette information à ce point du programme principal n'est pas
+problématique dans la mesure où nous venons justement de nous assurer que le
+thread concerné a terminé son exécution ; l'information recueillie n'est
+donc plus susceptible d'être modifiée par le thread concerné.
+
+Remarquez que pour l'instant les macros ``USE_MUTEX'' et ``USE_ATOMIC''
+situées en haut du fichier source valent toutes les deux ``0''.
+Veuillez alors examiner attentivement les structures ``SharedData'' et
+``ThreadData'', la fonction ``threadTask()'' et la fin du programme
+principal en considérant que nous sommes dans le cas ``unsynchronised''.
+Vous devriez comprendre que chaque thread effectue les mêmes accumulations
+de valeurs sur le champ ``count'' de la structure partagée que sur sa variable
+``count'' locale.
+Puisque cette variable locale est finalement recopiée dans le champ ``result''
+de la structure qui est propre à chaque thread et que le programme principal
+calcule dans une variable ``localCount'' la somme de tous ces champs
+``result'', nous en déduisons que la valeur de ``localCount'' doit être égale
+à celle du champ ``count'' de la structure partagée.
+nb : ce champ qui est manipulé par plusieurs threads à la fois est qualifié
+     avec le mot clef ``volatile''.
+     Ce mot clef signifie que le champ en question peut changer de valeur
+     ``spontanément'' (à cause des autres threads qui le manipulent ici).
+     Le compilateur se garde alors d'effectuer une optimisation qui consiste
+     à ne pas relire la valeur de cette variable dans la mémoire lorsqu'il
+     suppose qu'elle n'a pas pu évoluer depuis le dernier accès (si,
+     justement ! à cause des autres threads).
+     L'emploi du mot clef ``volatile'' est une pratique à adopter
+     systématiquement dans le cas où nous savons qu'une même variable
+     est manipulée par plusieurs traitements en parallèle ; nous nous
+     assurons ainsi de la visibilité de ses divers changements de valeur.
+
+Pour tester ce programme il suffit de le lancer sans plus d'arguments.
+Il détectera alors le nombre de CPUs sur la machine pour utiliser autant de
+threads (vous pouvez toutefois choisir le nombre de threads sur la ligne de
+commande).
+Quelle surprise n'aurez-vous pas de constater que ces calculs ne donnent
+pas des résultats identiques !
+L'explication vient du fait que les opérations même les plus élémentaires
+à écrire (de simples ``+='' ici) ne sont pas ``atomiques'' : c'est à dire
+qu'elles sont constituées de plusieurs étapes.
+Dans le cas présent, l'incrémentation revient à lire la valeur depuis la
+mémoire, lui faire subir une addition dans un registre du processeur et enfin
+réécrire dans la mémoire la nouvelle valeur.
+Si plusieurs threads lisent la même variable simultanément, ils obtiennent
+la même valeur, la modifient tous dans un registre de leur CPU et écrivent
+tous une nouvelle valeur.
+Parmi toutes ces valeurs écrites nous ne savons pas laquelle le sera en
+dernier et celle-ci n'aura subi qu'une seule des multiples additions !
+Le but de ce contre-exemple était d'attirer votre attention sur le fait
+qu'il est indispensable de synchroniser l'accès aux données partagées par
+de multiples traitements simultanés ; sans ces précautions nous constatons
+que nos calculs deviennent incohérents !
+
+Nous envisageons désormais de rendre cohérents ces calculs.
+Pour ceci, nous devons nous assurer que la séquence d'étapes qui constitue
+l'opération d'accumulation sur le champ ``count'' partagé sera toujours
+terminée lorsqu'une autre commencera.
+Ainsi la valeur lue par un thread juste avant l'accumulation ne sera pas lue
+ni modifiée par un autre thread tant que l'écriture de la valeur modifiée
+n'aura pas eu lieu dans ce même thread.
+Ceci revient à ``sérialiser'' (vocabulaire) ces opérations sensibles qui,
+sinon, auraient lieu simultanément (avec les conséquences déjà constatées).
+
+Un moyen classique d'assurer cette sérialisation consiste à réaliser une
+``section critique'' (vocabulaire) à l'aide d'un ``sémaphore d'exclusion
+mutuelle'' (vocabulaire).
+En d'autres termes, il s'agit d'encadrer l'accès à une ressource par l'usage
+d'un verrou (comme sur une porte) qu'on verrouille avant d'accéder à la
+ressource (comme entrer dans la salle de bain) et qu'on déverrouille lorsqu'on
+a fini d'utiliser la ressource.
+On s'interdit d'utiliser directement la ressource sans se soumettre à l'usage
+du verrou (pour entrer dans la salle de bain le verrou doit être ouvert sinon
+on attend à la porte ; le fait d'entrer ferme le verrou ainsi on est seul
+dans la salle de bain ; lorsqu'on quitte la salle de bain on ouvre le verrou
+et la salle de bain devient disponible pour la personne suivante).
+
+Pour revenir au code, nous devons tout d'abord passer à ``1'' la macro
+``USE_MUTEX'' en haut du fichier source ; cela a pour conséquence de modifier
+le contenu de la structure ``SharedData''.
+Désormais le champ ``count'' est accompagné d'un champ ``mtx'' de type
+``std::mutex'' : il s'agit d'un sémaphore d'exclusion mutuelle (mutual
+exclusion).
+Le point {3} du programme fourni doit alors être complété pour réaliser
+l'accumulation dans le champ ``count'' partagé sous le contrôle du verrou
+``mtx'' : il suffit de le verrouiller (méthode ``lock()'') avant l'opération
+et de le déverrouiller (méthode ``unlock()'') après.
+nb : les bonnes pratiques de C++ recommandent de recourir à un objet
+     utilitaire ``std::lock_guard'' pour manipuler un tel verrou (pour ne
+     jamais oublier de le déverrouiller).
+     Dans un but pédagogique nous manipulons directement le verrou ici afin
+     de rendre explicites les opérations de dé/verrouillage.
+
+En relançant le programme vous devriez constater que désormais les comptes
+sont à coup sûr cohérents.
+En revanche la durée d'exécution a été considérablement allongée.
+En effet, les sémaphores d'exclusion mutuelle sont des objets de
+synchronisation implémentés dans le noyau du système d'exploitation.
+Leur manipulation invoque systématiquement des appels système et l'usage de
+l'ordonnanceur (suspension/relance des tâches) ce qui est infiniment plus
+lent que les simples opérations sur les entiers qui nous servent de prétexte.
+
+Toutefois, dans le cas présent, la portion de code sensible que nous
+protégeons par une section critique est extrêmement courte : l'accumulation
+sur une unique variable entière.
+Même si, comme constaté plus haut, de telles opérations ne sont pas atomiques
+en temps normal, les processeurs disposent toutefois d'une version atomique
+de quelques opérations élémentaires (lecture, écriture, addition,
+soustraction , et, ou...).
+De telles opérations utilisent une synchronisation matérielle pour assurer
+qu'une variable donnée n'est pas modifiée simultanément par plusieurs CPUs.
+Elles ne sont pas utilisées par défaut car cette synchronisation matérielle
+les rend plus lentes que les opérations classiques mais peuvent toutefois
+être invoquées à la demande ; le langage C++ en propose notamment l'usage de
+manière standard à travers les types ``std::atomic''.
+
+Pour en faire usage dans notre programme, il faut tout d'abord restaurer à
+``0'' la macro ``USE_MUTEX'' et passer à ``1'' la macro ``USE_ATOMIC'' en haut
+du fichier source ; cela a pour conséquence de modifier à nouveau le contenu
+de la structure ``SharedData''.
+Cette fois, le champ ``count'' est de type ``std::atomic<int>'' ; il s'utilise
+en apparence comme un simple entier mais C++ utilise des opérations atomiques
+lorsqu'on le manipule.
+Le point {4} du programme fourni doit alors être complété pour réaliser
+l'accumulation sur le champ ``count'' partagé : ceci a strictement la même
+forme que l'accumulation sur le simple entier initial mais C++ traduira le
+code différemment.
+nb : il y a moyen de contrôler très finement l'ordre mémoire de ces opérations
+     atomiques (``std::memory_order'') mais ceci sort largement du cadre de
+     cette initiation au parallélisme et n'a que peu d'effet sur les modèles
+     de processeurs utilisés pour ces exercices (x86/x86_64).
+
+En relançant le programme vous devriez constater que les comptes restent à
+coup sûr cohérents mais que cette fois-ci le temps d'exécution est bien
+moins pénalisant que dans le cas de l'usage d'un sémaphore d'exclusion
+mutuelle.
+Toutefois, comme il était prévisible, cette durée est tout de même plus longue
+que lors de l'usage d'un simple entier (donnant des résultats incorrects).
+C'est bien pour cette raison que les opérations atomiques des processeurs 
+ne sont pas utilisées pour les calculs d'usage général et ne le sont que de
+manière très localisée sur quelques variables que nous partageons
+intentionnellement.
+Il est important de comprendre que les opérations atomiques n'assurent
+l'atomicité que pour une unique opération sur une unique variable simple (un
+entier par exemple) ; il n'est pas possible de modifier en une seule opération
+atomique plusieurs variables, et si plusieurs opérations atomiques sont
+utilisées séquentiellement, l'ensemble n'est bien entendu pas atomique.
+Dans ce cas, il est nécessaire de recourir à un sémaphore d'exclusion
+mutuelle (comme vu précédemment) ou à de l'attente active (abordée dans un
+prochain sujet).
+
+Documentation à consulter :
+  Threads.pdf
+  std::vector --> http://en.cppreference.com/w/cpp/container/vector
+  std::thread --> http://en.cppreference.com/w/cpp/thread/thread
+  std::mutex  --> http://en.cppreference.com/w/cpp/thread/mutex
+  std::atomic --> http://en.cppreference.com/w/cpp/atomic/atomic
+
+==============================================================================
+prog04_producer_consumer.cpp : La coordination des threads requiert des
+                               méthodes de synchronisation spécifiques.
+
+Il n'est pas rare que la coordination entre tâches partageant des données
+communes nécessite des procédés de synchronisation un peu plus élaborés qu'une
+simple section critique lors de l'accès aux variables.
+Un exemple très courant, et utilisé dans de très nombreux contextes, est le
+modèle producteur-consommateur dans lequel une (ou des) tâche(s) produi(sen)t
+des données qui doivent être consommées par une autre (ou d'autres) tâche(s).
+Comme ces tâches ne travaillent pas forcément à la même allure, il est
+nécessaire de mettre en attente dans une file les données produites mais pas
+encore consommées.
+Un consommateur n'a donc rien à faire tant que cette file est vide ; en
+revanche, dès qu'elle ne l'est plus, il peut en retirer une donnée et la
+traiter avant de se mettre en attente de la prochaine.
+Puisque la file a une capacité limitée, un producteur doit attendre qu'elle ne
+soit pas pleine pour y placer la donnée qu'il vient de produire ; il pourra
+ensuite produire la donnée suivante.
+La synchronisation des threads revient donc à bloquer et débloquer leur
+progression en fonction de l'état de ressources communes (la file d'attente
+ici).
+
+Nous reprenons ici la même démarche que dans l'exercice précédent pour
+distinguer les données propres à chaque thread et celles qui sont partagées
+par l'ensemble des threads.
+Toutefois, puisque nous avons ici affaire à deux types de tâches distinctes
+(les producteurs et les consommateurs), nous séparons les données propres à
+chaque thread en deux sous-ensembles distincts.
+Étudiez attentivement le code fourni en remarquant que nous sommes dans le cas
+``unsynchronised'' (la macro ``USE_SYNCHRO'' en haut du fichier source vaut
+``0'').
+Vous devriez constater que les producteurs et consommateurs gardent un compte
+de tout ce qu'ils produisent et consomment, et que le programme principal
+récupère ces informations pour en faire le bilan ; ces détails de réalisation
+sont à nouveau très similaires à l'exercice précédent.
+
+En complétant les points {1}, {2}, {3} et {4} du programme fourni, vous
+réaliserez le lancement et l'attente de tous les threads du problème.
+Ces étapes sont quasiment identiques à ce qui avait été fait dans l'exercice
+précédant ; seuls les noms des variables et des fonction doivent être adaptés.
+
+Pour tester ce programme dans sa toute première version, il suffit de le
+lancer sans plus d'arguments.
+Il détectera alors le nombre de CPUs sur la machine pour utiliser autant de
+threads producteurs et la moitié de threads consommateurs (vous pouvez
+toutefois choisir ces nombres de threads sur la ligne de commande).
+Constatez que le bilan des comptes de ce qui est produit et consommé n'est
+pas juste : nous avons encore en l'état un problème de synchronisation !
+
+Le passage à ``1'' de la macro ``USE_SYNCHRO'' en haut du fichier source aura
+pour conséquence de modifier le contenu de la structure ``SharedData''.
+Désormais le les champs ``fifo'' et ``done'' sont accompagnés d'un champ
+``mtx'' de type ``std::mutex'' (sémaphore d'exclusion mutuelle) et d'un champ
+``cnd'' de type ``std::condition_variable_any'' : il s'agit d'une ``variable
+condition'' (vocabulaire).
+Le recours au verrou nous est désormais familier et il semble naturellement
+adapté à notre problème.
+En effet, une opération atomique est loin de suffire puisque les threads se
+synchronisent en fonction du changement d'état de plusieurs variables dont une
+est d'un type élaboré (la file d'attente).
+Cependant, le verrou n'est pas encore pleinement satisfaisant pour notre
+problématique : comment verrouiller l'accès à la file d'attente lorsqu'on
+attend qu'elle devienne non-vide ou non-pleine ?
+- si nous encadrons cette boucle dans une section critique, il ne sera alors
+  possible à aucun autre thread de modifier l'état de la file !
+- si au contraire nous réalisons une boucle dont le corps contient une
+  section critique qui teste l'état de la file et la modifie le cas échéant,
+  nous réalisons alors une attente active qui reboucle à un rythme effréné,
+  éventuellement pendant longtemps pour n'effectuer que très rarement une
+  action utile ; ceci est totalement sous-optimal et opposé au principe de
+  fonctionnement d'un verrou dont le rôle est de bloquer un traitement
+  pour ne le réveiller qu'au moment opportun.
+C'est ici qu'apparaît l'utilité d'un objet de synchronisation tout aussi
+fondamental que le sémaphore d'exclusion mutuelle : la variable condition.
+En effet, comme indiqué par les exemples des pages 46 et 48 du document
+``Threads.pdf'', à chaque fois que nous modifions des données sensibles pour
+la synchronisation des threads, nous nous imposons de le ``signaler'' à la
+variable condition qui leur est associée ;  ainsi, d'autres threads qui
+étaient bloqués en attente sur cette variable condition seront relancés et
+auront l'opportunité de contrôler le nouvel état des données sensibles pour la
+synchronisation.
+Bien entendu, toutes ces consultations/modifications des données sensibles
+doivent toujours être encadrées par des sections critiques.
+Remarquez que l'opération d'attente a connaissance du verrou sur lequel repose
+une telle section critique ; cette opération le déverrouille juste avant le
+blocage et le reverrouille juste après la relance ce qui permet aux autres
+threads d'intervenir sur les données sensibles pendant l'attente.
+nb : les bonnes pratiques de C++ recommandent de recourir aux objets
+     utilitaires ``std::condition_variable'' et ``std::unique_lock'' afin
+     d'assurer un bon usage du verrou associé à la variable condition.
+     Dans un but pédagogique nous manipulons directement le verrou ici afin
+     de rendre explicites les opérations de dé/verrouillage.
+
+En complétant les points {5}, {6} et {7} du programme fourni, vous ferez
+usage de cette variable condition et du sémaphore d'exclusion mutuelle
+associé.
+Veillez à bien suivre les consignes et à ne pas utiliser les variables
+sensibles à la synchronisation (``fifo'' et ``done'') en dehors des sections
+critiques.
+
+En relançant votre programme après avoir correctement réalisé la
+synchronisation des threads vous devriez constater que désormais la même
+quantité est produite et consommée.
+
+Cette démarche de synchronisation reposant sur variable condition est très
+courante et bien adaptée lorsqu'il s'agit d'attendre qu'une condition
+applicative soit remplie (on ne se contente pas de réguler l'accès à une
+ressource comme c'était le cas avec un unique verrou).
+En particulier, si nous savons que l'attente peut être longue avant que la
+condition applicative ne soit remplie, le comportement bloquant de l'attente
+est tout à fait pertinent car il évite une boucle d'attente active qui
+consommerait inutilement de la puissance de calcul et de l'énergie.
+
+Documentation à consulter :
+  Threads.pdf
+  std::vector --> http://en.cppreference.com/w/cpp/container/vector
+  std::thread --> http://en.cppreference.com/w/cpp/thread/thread
+  std::mutex  --> http://en.cppreference.com/w/cpp/thread/mutex
+  std::condition_variable_any
+            --> http://en.cppreference.com/w/cpp/thread/condition_variable_any
+
+==============================================================================

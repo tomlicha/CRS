@@ -1,0 +1,488 @@
+==============================================================================
+Communication mono-processus                    (Fabrice Harrouet, module CRS)
+==============================================================================
+
+Il s'agit d'une série d'exercices servant à la prise en main de mécanismes
+élémentaires de programmation système utiles à la communication.
+Au cours de cette séance nous ne nous appuierons que sur la communication
+d'unique processus avec son environnement.
+
+Chaque programme est volontairement très simple afin de se focaliser sur la
+découverte des services proposés sans être distrait par les détails annexes
+d'une quelconque application particulière.
+Il convient de traiter ces exercices tranquillement, en s'interrogeant à
+chaque fois sur le propos de la fonctionnalité particulière qui est mise en
+avant.
+Il ne sert strictement à rien d'enchaîner les exercices sans les comprendre
+en se contentant de :
+  ``ça compile et ça ne plante pas donc j'ai bon, je passe à la suite''
+
+La consultation de la documentation est très importante et fait partie
+intégrante du travail.
+Pour ceci vous disposez des pages de manuel indiquées à chaque exercice ainsi
+que des documents disponibles sur :
+  http://www.enib.fr/~harrouet/courses.html
+Le fichier d'entête ``crsUtils.hpp'' doit également être consulté très
+régulièrement puisqu'il fournit, au delà de quelques fonctionnalités
+utilitaires, la mise à disposition dans une forme facilitée pour les étudiants
+(limitation des pointeurs, des conversions de types, utilisation de chaînes
+et vecteurs C++, contrôle des échecs...) des appels et fonctionnalités
+systèmes que nous utiliserons.
+
+Vous êtes censés savoir refaire et réutiliser tous ces exercices lors des
+séances ultérieures ; n'hésitez donc pas à poser des questions lors de cette
+séance et à les refaire tout seul ensuite pour vous entraîner.
+
+==============================================================================
+prog01_interaction.cpp : La communication minimale qui soit envisageable
+                         repose sur les informations de la ligne de commande
+                         ainsi que sur les entrées/sorties standards.
+
+Ce tout premier programme permet essentiellement de se familiariser avec
+l'environnement de travail.
+La commande :
+  $ make
+lancée depuis un terminal ouvert dans le répertoire de travail contenant ces
+fichiers, provoque la compilation de tous les programmes de la séance.
+nb: la commande ``make clean'' permet de nettoyer le répertoire de travail
+    en ne conservant que les codes sources ; les résultats de compilation
+    sont effacés puisqu'ils peuvent être générés à nouveau.
+
+Pour exécuter un tel programme il suffit de saisir son nom et ses éventuels
+arguments sur la ligne de commande du même terminal :
+  $ ./prog01_interaction ceci 12 cela 34 hello
+Pour l'instant, vous devez observer le comportement de ce programme en
+étudiant attentivement son code source.
+
+Tout d'abord, intéressons nous à la ligne de commandes :
+- elle est constituée d'une séquence de chaînes de caractères ; la
+  première de ces chaînes est le nom du programme lui même,
+- il est possible de convertir ces chaînes de caractères en valeurs
+  numériques, lorsqu'elles ont la forme convenable, afin de les exploiter
+  comme il se doit (calcul...)
+Invoquez le programme avec diverses lignes de commande afin de vous
+assurer de votre bonne compréhension.
+
+Concernant l'affichage des messages, nous utilisons ici un procédé peu
+conventionnel.
+En effet, il est courant d'avoir recours à des fonctionnalités d'assez
+haut niveau (``printf()'' en C, ``std::cout << ... '' en C++, ``print()''
+en Python...) afin de bénéficier de confort pour ces opérations très
+courantes.
+Seulement, toutes ces fonctionnalités de haut niveau reposent au bout du
+compte sur des fonctionnalités de bas niveau fournies par le système
+d'exploitation, et ce sont justement ces moyens de communication élémentaires
+des systèmes d'exploitation qui représentent une partie conséquente du sujet
+d'étude de ce module d'enseignement.
+Nous nous efforçons d'utiliser ici ces mécanismes de bas niveau afin
+d'illustrer leurs principes généraux et les similarités avec d'autres moyens
+de communication.
+!!! Ce choix a été fait uniquement pour des raisons pédagogiques !!!
+    Ceci ne signifie pas que c'est la bonne façon de faire en général,
+    quel que soit le contexte applicatif, au contraire !
+
+Tout ce qui concerne le formatage des chaînes de caractères est traité
+par la fonction utilitaire ``crs::txt()''.
+Son utilisation est triviale : son premier paramètre est une chaîne
+littérale dont chaque symbole '%' est remplacé par la valeur d'un des
+paramètres suivants (dans l'ordre).
+Le résultat est une chaîne C++ ``std::string''.
+
+L'écriture effective, vers le terminal, du message ainsi constitué a lieu
+avec la fonction ``crs::write()'' qui attend en premier paramètre un
+descripteur de fichier.
+Un tel descripteur de fichier est une notion fondamentale en communication.
+Il s'agit d'un entier pour désigner un ``tuyau'' de communication par
+son numéro.
+Par défaut, tout processus dispose de trois descripteurs de fichier déjà
+ouverts, les entrées/sorties standards :
+- STDIN_FILENO (vaut 0) : l'entrée standard pour la saisie au clavier
+  depuis le terminal,
+- STDOUT_FILENO (vaut 1) : la sortie standard pour l'affichage dans le
+  terminal de messages destinés à l'utilisateur,
+- STDERR_FILENO (vaut 2) : la sortie d'erreur pour l'affichage dans le
+  terminal de messages d'erreur, de diagnostic ou de mise au point.
+nb: La distinction STDOUT_FILENO/STDERR_FILENO n'est pas immédiate puisque
+    tous ces messages aboutissent dans le terminal ; comme nous le verrons
+    plus tard, il est possible de rediriger ces descripteurs afin qu'ils
+    produisent leur effet sur des ressources distinctes.
+Ici, nous envoyons tous les caractères d'une chaîne C++ préalablement
+constituée vers le descripteur de fichier numéro 1, STDOUT_FILENO,
+la sortie standard, qui produit par défaut son affichage dans le terminal.
+
+De la même façon, nous constatons que, dans la deuxième partie du code
+source fourni, la saisie au clavier a lieu par l'appel à la fonction
+utilitaire ``crs::readLine()'' sur le descripteur de fichier numéro 0,
+STDIN_FILENO, l'entrée standard.
+Cette fonction invoque l'appel système ``read()'' jusqu'à obtenir le
+caractère de retour à la ligne '\n' et nous renvoie la chaîne C++ ainsi
+constituée.
+
+Vous remarquerez certainement que la boucle de saisie doit s'interrompre
+lorsque la fin-de-fichier (EOF) est atteinte ; dans ce cas, l'appel système
+``read()'' renvoie 0 pour indiquer qu'il n'y a plus rien à lire et notre
+fonction ``crs::readLine()'' fournit une chaîne vide.
+Seulement, même s'il s'abstient d'utiliser le clavier quelques temps, tant
+que l'utilisateur est vivant il peut à tout moment décider de reprendre sa
+saisie.
+Pour cette raison, il est possible de simuler la fin-de-fichier (EOF)
+en saisissant la combinaison de touches [Control]+[d] sur une ligne vide
+dans le terminal afin de signaler l'intention de terminer la saisie.
+Vous devriez alors constater la détection de cet événement par le programme
+et la sortie de la boucle.
+
+En vous inspirant du code déjà écrit, vous pourrez compléter le code fourni
+selon les commentaires indiqués.
+Ceci vous permettra de réaliser un premier programme interactif qui
+réagit simplement à vos sollicitations.
+
+Les éléments décrits, constatés et réalisés ici ont un intérêt pratique
+très limité en l'état mais servent de base pour la démarche à suivre dans
+les futurs exercices de cette séance et des suivantes.
+
+Documentation à consulter :
+  std::vector  --> http://en.cppreference.com/w/cpp/container/vector
+  std::string  --> http://en.cppreference.com/w/cpp/string/basic_string
+  crs::write() --> man 2 write
+  crs::read()  --> man 2 read
+
+==============================================================================
+prog02_copy.cpp : L'usage des différents descripteurs de fichier est
+                  similaire, quelles que soient les ressources désignées.
+
+Ce programme propose de recopier des données entre différents fichiers ; il
+s'agit de lire les données de l'un (entrée) pour les placer dans l'autre
+(sortie).
+Puisque les fichiers et les entrées/sorties standards (entre autres)
+sont manipulés à travers la même notion de descripteur de fichier, ces
+opérations de recopies peuvent avoir lieu indifféremment des uns vers les
+autres.
+
+Le programme fourni analyse sa ligne de commande pour y détecter d'éventuels
+noms de fichier à utiliser en entrée (``-i'') ou en sortie (``-o'') pour la
+recopie.
+Si aucun nom de fichier n'est donné pour l'entrée, c'est l'entrée standard
+qui sera utilisée, et si aucun nom de fichier n'est donné pour la sortie,
+c'est la sortie standard qui sera utilisée.
+
+En complétant les points {1} et {2} du programme fourni, vous réaliserez 
+l'ouverture de ces fichiers lorsqu'ils sont requis.
+
+Dès qu'on accède à des ressources du système (ici les fichiers), il
+convient de se poser la question de la libération de ces ressources.
+En complétant les points {3} et {4} du programme fourni, vous fermerez ces
+fichiers lorsqu'ils ne seront plus utiles (à la fin du programme).
+
+La partie active du programme est constituée de la boucle de recopie.
+Il s'agit, à chaque itération, d'extraire du fichier d'entrée une quantité
+d'octets quelconque mais qui tienne dans la tampon mémoire ``buffer'',
+puis de transférer exactement la quantité d'octets obtenue de la
+mémoire tampon ``buffer'' vers le fichier de sortie.
+Ceci doit être réalisé au point {5} du programme fourni.
+L'opération de lecture utilise la variante de ``crs::read()'' à trois
+arguments (comme l'appel système ``read()'') : le descripteur de fichier à
+lire, l'adresse de la mémoire tampon dans laquelle placer les octets lus et
+la capacité maximale de cette mémoire tampon.
+L'opération d'écriture utilise la variante de ``crs::writeAll()'' à trois
+arguments (qui utilise l'appel système ``write()'') : le descripteur de
+fichier dans lequel écrire, l'adresse de la mémoire tampon contenant les
+octets à écrire et la quantité d'octets à écrire.
+Cette boucle se répète jusqu'à ce que la fin-de-fichier (EOF) soit détectée
+lors de la lecture, c'est à dire lorsque ``read()'' renvoie 0.
+
+Pour tester ce programme, nous le lançons dans un premier temps sans
+argument :
+  $ ./prog02_copy
+Il doit alors se contenter de répéter dans le terminal ce que nous saisissons
+au clavier.
+Ainsi, nous voyons apparaître nos lignes de texte en double : une fois lors
+de la saisie, un seconde fois lors de la recopie.
+Vérifiez que la saisie de la combinaison de touches [Control]+[d] sur une
+ligne vide provoque bien la détection de la fin-de-fichier et la sortie
+du programme.
+
+Vous pouvez alors tester la lecture d'un fichier en entrée :
+  $ ./prog02_copy -i GNUmakefile
+Vous devez constater que le contenu du fichier apparaît dans le terminal.
+
+Vous pouvez également tester l'écriture dans un fichier de sortie :
+  $ ./prog02_copy -o output_file
+Tout ce que vous saisissez au clavier est inscrit dans ce fichier.
+Après la fin de la saisie ([Control]+[d]) vous devriez constater que le
+fichier ``output_file'' contient bien les lignes de texte que vous avez
+entrées au clavier.
+
+La dernière combinaison revient à faire une copie d'un fichier vers un autre :
+  $ ./prog02_copy -i GNUmakefile -o output_file
+Vous devriez constater que le fichier ``output_file'' a bien un contenu
+identique à celui du fichier ``GNUmakefile''.
+
+Pour faciliter l'expérimentation nous n'avons manipulé ici que des données
+textuelles mais notre programme ne suppose en aucune façon qu'il a affaire
+à du texte ; il recopie des paquets d'octets sans chercher à les interpréter
+et le texte n'est qu'un cas particulier.
+Vous pouvez par exemple recopier un programme exécutable :
+  $ ./prog02_copy -i prog01_interaction -o output_file
+La commande :
+  $ diff prog01_interaction output_file
+vous indiquera si ces deux fichiers sont différents.
+S'ils sont identiques, vous pouvez rendre la copie exécutable et l'utiliser :
+  $ chmod +x output_file
+  $ ./output_file a 1 bc 23 def
+
+À travers ces quelques essais vous avez vérifié quelques propriétés des
+entrées/sorties et des fichiers :
+- les fichiers et les entrées/sorties standards sont interchangeables
+  puisqu'on les utilise de manière similaire,
+- les entrées/sorties et les fichiers ne sont que des flux d'octets, seules
+  les applications leur donnent du sens.
+
+Documentation à consulter :
+  crs::openR()    --> man 2 open
+  crs::openW()    --> man 2 open
+  crs::close()    --> man 2 close
+  crs::read()     --> man 2 read
+  crs::writeAll() --> man 2 write
+
+==============================================================================
+prog03_exec_redir.cpp : Un recouvrement remplace le contenu du processus
+                        courant pour exécuter un tout autre programme ; les
+                        redirections d'entrées/sorties facilitent alors
+                        la réutilisation d'un programme déjà existant.
+
+Dans un programme que nous écrivons, nous pouvons décider d'exécuter tel quel
+un autre programme déjà existant dans le système ; il s'agit d'un recouvrement
+de processus.
+Cette opération est réalisée par l'appel système ``execve()'' qui vide le
+processus courant de son contenu (données et code) et les remplace par le code
+d'un autre programme et ses données initiales ; seuls les descripteurs de
+fichier déjà ouverts sont conservés par cette opération.
+Il s'agit du mécanisme élémentaire qui nous permet d'exécuter des programmes
+dans un système.
+Toutefois, il s'agit ici de recouvrir le processus courant, c'est à dire que
+le programme du processus courant ne se poursuit pas au delà de cet appel,
+c'est alors le nouveau programme qui démarre son exécution à son début.
+Lors d'une prochaine séance nous verrons comment faire apparaître un nouveau
+processus afin de conserver le programme du processus courant tout en
+exécutant un nouveau programme dans le nouveau processus.
+
+Le code du programme fourni invite à la saisie interactive (argument par
+argument) d'une nouvelle ligne de commande (un vecteur de chaînes C++).
+En complétant le point {1} du programme fourni, vous effectuerez le
+recouvrement du processus courant par le programme spécifié par cette
+nouvelle ligne de commande (le programme exécutable est désigné par le
+premier argument).
+Le message qui suit dans le code source n'est là que pour constater qu'après
+le recouvrement du processus la suite du code initial n'est pas exécutée
+puisque ce code a été remplacé par un autre.
+
+Pour tester ce programme, nous le lançons dans un premier temps sans
+argument :
+  $ ./prog03_exec_redir
+À l'invitation vous pouvez saisir ``ls'' puis une ligne vide pour signifier
+la fin de la nouvelle ligne de commande.
+Vous constaterez alors que ce processus exécute désormais la commande ``ls''
+(qui liste le contenu du répertoire courant) ; vérifiez que le message
+final de votre programme n'apparaît pas.
+La ligne de commande peut bien entendu contenir des arguments supplémentaires
+pour paramétrer l'exécution du nouveau programme.
+Si à l'invitation vous saisissez ``ls'' puis ``-l'' vous obtiendrez alors
+les détails du contenu du répertoire courant.
+
+Le nouveau programme invoqué peut être interactif, c'est à dire qu'il
+peut lire son entrée standard avant de produire un résultat sur sa sortie
+standard.
+C'est la cas par exemple si vous saisissez à l'invitation ``sed'' puis ``-u''
+et enfin ``y/aeiouy/AEIOUY/''.
+Vous devez constater que, utilisé avec ces arguments, le programme ``sed'' lit
+son entrée standard et la recopie sur sa sortie standard en remplaçant chaque
+voyelle en minuscule par sa majuscule (jusqu'à la saisie de [Control]+[d]).
+
+Nous pouvons alors envisager de rediriger les entrées/sorties afin que le
+programme lise un fichier (et non le clavier) comme entrée standard et écrive
+son résultat dans un autre fichier (et non le terminal).
+En complétant les points {2} et {3} du code fourni, vous réaliserez ces
+redirections ; il s'agit d'ouvrir en lecture ou en écriture les fichiers
+indiqués juste pour remplacer l'entrée et la sortie standards par ces
+ressources ; les descripteurs numéro 0 (STDIN_FILENO) et 1 (STDOUT_FILENO)
+gardent leur numéro mais ne désignent plus le clavier et le terminal.
+Puisque l'opération de recouvrement de processus conserve les descripteurs de
+fichier dans leur état, le nouveau programme exécuté par ce processus lira
+son entrée standard depuis le fichier ouvert en lecture et produira sur sa
+sortie standard des données qui aboutiront dans le fichier ouvert en écriture.
+
+Pour tester cette nouvelle fonctionnalité, nous lançons notre programme de
+cette façon :
+  $ ./prog03_exec_redir -o output_file
+et nous répondons simplement ``ls'' à l'invitation.
+Vous devez désormais constater que la liste du contenu du répertoire courant
+n'apparaît plus dans le terminal mais dans le fichier ``output_file''.
+
+De manière similaire, en lançant notre programme de cette façon :
+  $ ./prog03_exec_redir -i output_file
+et en répondant à l'invitation par ``sed'' puis ``-u'' et enfin
+``y/aeiouy/AEIOUY/'' vous devez voir apparaître dans le terminal le contenu
+du fichier ``output_file'' avec les voyelles transformées.
+Et bien entendu, si vous lancez le programme de cette façon :
+  $ ./prog03_exec_redir -i GNUmakefile -o output_file
+et que vous donnez les mêmes réponses à l'invitation, vous obtiendrez
+dans le fichier ``output_file'' une copie avec les voyelles transformées
+du contenu du fichier ``GNUmakefile''.
+
+À travers ces quelques essais vous avez vérifié que la notion de descripteur
+de fichier permet de substituer les entrées/sorties standards par des fichiers
+usuels.
+Cette fonctionnalité est particulièrement intéressante pour réutiliser
+tels quels des programmes déjà existant qui communiquent par leurs
+entrées/sorties standards.
+
+Documentation à consulter :
+  crs::exec()  --> man 2 execve
+  crs::openR() --> man 2 open
+  crs::openW() --> man 2 open
+  crs::dup2()  --> man 2 dup2
+  crs::close() --> man 2 close
+
+==============================================================================
+prog04_fifo.cpp : Les tubes nommés apparaissent comme des fichiers mais
+                  permettent à des processus de communiquer directement.
+
+Nous cherchons ici à faire communiquer deux processus : l'un produit
+des données que l'autre consomme.
+En l'état de nos connaissances actuelles sur le sujet, la première solution
+naïve que nous pouvons envisager consiste à essayer de faire usage commun
+d'un même fichier.
+Nous commençons par expérimenter pour mettre en évidence le fait que cette
+solution est très mauvaise.
+Dans un premier terminal nous lançons notre programme de recopie afin qu'il
+recopie son entrée standard vers un fichier :
+  $ ./prog02_copy -o output_file
+Sans arrêter le premier, nous lançons dans un autre terminal un autre
+programme de recopie afin qu'il recopie ce même fichier vers la sortie
+standard :
+  $ ./prog02_copy -i output_file
+Nous constatons que, bien que le premier n'ait pas terminé, le second
+lit complètement le fichier (qui est vide) et se termine.
+Si maintenant nous saisissons une ligne de texte dans le premier programme
+et que nous relançons le second, nous constatons que l'exécution du second
+lit bien cette ligne depuis le fichier et se termine à nouveau.
+En répétant ceci plusieurs fois nous constatons qu'à chaque essai le second
+programme lit complètement le fichier commun depuis son début et se termine.
+Il n'y a donc aucune communication interactive entre ces deux processus ;
+cette pseudo-solution est donc totalement inadaptée.
+
+Les tubes nommés sont des éléments qui apparaissent dans le système de
+fichiers comme les fichiers usuels ou les répertoires.
+Seulement, contrairement aux fichiers, ils ne servent pas à stocker des
+données sur un support ; il s'agit de ressources ayant un nom et que l'on
+peut ouvrir comme des fichiers soit pour y lire soit pour y écrire.
+Si un processus ouvre un tube nommé en lecture et qu'un autre ouvre le
+même tube en écriture alors ces deux processus disposent d'un moyen de
+communiquer directement : ce qui est écrit par le descripteur du second
+est lu par le descripteur du premier.
+Cette communication passe par la mémoire du système d'exploitation mais
+en aucun cas par le système de fichiers (qui ne sert qu'à donner son nom
+au tube).
+
+Nous reprenons l'expérimentation en faisant cette fois-ci usage d'un
+tube nommé commun.
+Il faut commencer par le faire apparaître :
+  $ mkfifo my_fifo
+Désormais, il existe dans le répertoire courant un élément nommé ``my_fifo''
+qui n'est ni un fichier ni un répertoire : c'est un tube de communication.
+Relançons le premier programme de recopie :
+  $ ./prog02_copy -o my_fifo
+et dans un autre terminal le second programme de recopie :
+  $ ./prog02_copy -i my_fifo
+Nous constatons cette fois que le second programme ne se termine pas
+immédiatement mais attend des données en provenance de ``my_fifo''.
+À chaque fois que dans le premier programme nous saisissons quelque chose,
+nous le voyons apparaître immédiatement dans la sortie standard du second
+programme.
+Le second programme ne se termine que lorsque nous saisissons [Control]+[d]
+dans le premier.
+En effet, la fin-de-fichier sur l'entrée standard du premier programme
+provoque sa terminaison donc la fermeture du côté écriture du tube
+``my_fifo'' ; ceci provoque alors la fin-de-fichier sur le côté lecture
+du même tube et donc la terminaison du second programme.
+Dans ces nouvelles conditions, sans même avoir modifié le code source, les
+deux exemplaires de notre programme de recopie communiquent de manière
+parfaitement synchronisée : ce qui est produit par l'un est immédiatement
+obtenu par l'autre.
+
+Nous allons maintenant mettre en oeuvre explicitement cette nouvelle
+fonctionnalité dans le code source d'un programme.
+Ce programme enverra des données à un autre via un premier tube nommé et
+obtiendra sa réponse depuis un second tube.
+En complétant le point {1} du programme fourni vous allez créer les deux
+tubes nommés nécessaires.
+Ces tubes ne serviront que dans le contexte de ce programme donc devront
+être supprimés au niveau du point {2} lors de sa terminaison.
+
+Nous avons constaté qu'un programme initialement prévu pour ouvrir des
+fichiers s'accommodait très bien de tubes nommés.
+Vous pourrez donc ouvrir les tubes (l'un en écriture, l'autre en lecture) au
+niveau du point {3} comme s'il s'agissait de fichiers usuels et les fermer au
+niveau du point {4} lors de la terminaison du programme.
+
+La partie active du programme consiste en une boucle qui recopie ce qui est
+disponible sur l'entrée standard vers le tube ouvert en écriture, puis qui
+recopie la réponse obtenue depuis le tube ouvert en lecture vers la sortie
+standard.
+Les opérations à réaliser au niveau des points {5} et {6} sont très
+similaires à celles qui ont déjà été réalisées dans le programme de recopie
+``prog02_copy.cpp''.
+
+Pour tester ce programme, nous le lançons simplement sans arguments :
+  $ ./prog04_fifo
+Il indique le nom des deux tubes nommés qu'il a créés ainsi que l'usage
+qu'il en fera (lecture ou écriture).
+Dans un autre terminal, nous pouvons faire un usage complémentaire de
+ces mêmes tubes avec notre précédent programme :
+  $ ./prog03_exec_redir -i fifo1 -o fifo2
+à l'invitation duquel nous répondons ``sed'' puis ``-u'' et enfin
+``y/aeiouy/AEIOUY/''.
+Dans ces conditions, vous devez constater que chaque ligne de texte saisie
+dans le premier programme donne bien lieu à une répétition, mais avec les
+voyelles transformées, dans le même terminal.
+Puisque ce n'est pas ce premier programme qui effectue ce traitement, c'est
+bien le second programme qui a reçu par un tube la ligne saisie puis renvoyé
+par le second tube cette ligne transformée.
+Bien entendu, la saisie de [Control]+[d] provoque la terminaison des deux
+processus comme dans l'expérimentation précédente.
+
+nb: la boucle d'interaction réalisée ici est très rigide dans le sens où
+    elle impose un ordonnancement strict des messages.
+    Ceci convient tout à fait à l'expérimentation simpliste proposée mais
+    si nous souhaitions interagir avec un second programme qui envoie
+    spontanément des données (même lorsqu'il n'est pas sollicité par le
+    premier) il nous faudrait recourir à une boucle d'interaction plus
+    souple ; c'est le propos des points {7}, {8} et {9} laissés aux
+    plus motivés.
+
+Les diverses réalisations et expérimentations menées ici illustrent le
+fait qu'à travers la notion de descripteur de fichier il est possible
+d'utiliser indifféremment les entrées/sorties standards, des fichiers
+usuels et des tubes de communication, et même de procéder à des redirections
+pour réutiliser des programmes existants et enfin d'interconnecter des
+programmes pour les faire travailler ensemble.
+Il s'agit d'un principe fondateur des systèmes d'exploitation issus de
+la famille UNIX. (c'est à dire à peu près tous sauf un ;^)
+nb: maintenant que cette notion a été mise en évidence, nous utiliserons
+    dans les prochains sujets ``crs::out(...)'' et ``crs::err(...)'' en
+    lieu et place de ``crs::write(STDOUT_FILENO,crs::txt(...))'' et
+    ``crs::write(STDERR_FILENO,crs::txt(...))'' afin de faciliter la
+    rédaction du code source.
+
+Documentation à consulter :
+  man 1 mkfifo
+  crs::mkfifo()   --> man 3 mkfifo
+  crs::unlink()   --> man 2 unlink
+  crs::openR()    --> man 2 open
+  crs::openW()    --> man 2 open
+  crs::close()    --> man 2 close
+  crs::read()     --> man 2 read
+  crs::writeAll() --> man 2 write
+  crs::select()   --> man 2 select
+
+==============================================================================

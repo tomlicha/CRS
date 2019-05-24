@@ -1,0 +1,316 @@
+==============================================================================
+Serveur HTTP/HTTPS statique                     (Fabrice Harrouet, module CRS)
+==============================================================================
+
+Nous réutilisons ici nos connaissances en matière de serveur TCP dans le
+contexte du protocole HTTP (et HTTPS).
+Il s'agit en effet d'un protocole applicatif très largement utilisé et
+reposant sur le protocole de transport TCP.
+Comme dans toute architecture TCP nous distinguons les rôles ``client'' et
+``serveur'' : cet exercice se focalise essentiellement sur le rôle serveur.
+
+Il s'agira principalement de :
+ - expérimenter ``à la main'' le fonctionnement de HTTP,
+ - réaliser un serveur HTTP ou HTTPS minimal qui permette de fournir à des
+   clients.
+
+La consultation de la documentation est très importante et fait partie
+intégrante du travail.
+Pour ceci vous disposez des pages de manuel indiquées à chaque exercice ainsi
+que des documents disponibles sur :
+  http://www.enib.fr/~harrouet/courses.html
+En particulier, le document ``Memo_HTTP.pdf'' devrait beaucoup vous guider
+puisqu'il décrit la structure des requêtes et des réponses HTTP.
+Le fichier d'entête ``crsUtils.hpp'' doit également être consulté très
+régulièrement puisqu'il fournit, au delà de quelques fonctionnalités
+utilitaires, la mise à disposition dans une forme facilitée pour les étudiants
+(limitation des pointeurs, des conversions de types, utilisation de chaînes
+et vecteurs C++, contrôle des échecs...) des appels et fonctionnalités
+systèmes que nous utiliserons.
+
+Vous êtes censés savoir refaire et réutiliser cet exercice lors des
+séances ultérieures ; n'hésitez donc pas à poser des questions lors de cette
+séance et à le refaire tout seul ensuite pour vous entraîner.
+
+==============================================================================
+A) Serveur TCP multi-threads
+
+Nous reprenons ici la démarche qui consistait à expérimenter ``à la main'' le
+dialogue selon le protocole HTTP, mais en jouant cette fois-ci le rôle d'un
+serveur qui sera sollicité par un client standard.
+Nous réutilisons alors la commande nc de cette façon
+  $ nc -l numéro_de_port
+pour qu'elle écoute sur le port TCP indiqué (arbitraire >1024).
+Lorsqu'une connexion sera établie sur ce port, le comportement sera le même
+que dans le cas du rôle client (saisie-->envoi, réception-->affichage).
+Dans ce mode de fonctionnement, ce programme interactif n'accepte qu'une seule
+connexion, dialogue avec le client et se termine ; il ne sert qu'à
+expérimenter le rôle de serveur.
+La connexion proviendra du navigateur habituel (connexion à localhost sur le
+port choisi) :
+  $ firefox http://localhost:numéro_de_port/ceci/cela
+Vous devriez alors voir la requête du navigateur apparaître dans le terminal
+de la commande nc : sa première ligne qui demande la ressource, les lignes
+d'options et la ligne vide de fin d'entête.
+Il vous faut maintenant produire la réponse du serveur en la saisissant dans
+le terminal de la commande nc (consultez attentivement les exemples du
+document ``Memo_HTTP.pdf'').
+Une première ligne indique que la requête est satisfaisante et donnera lieu
+à une réponse :
+  HTTP/1.1 200 OK
+Pour faire simple, nous ne fournirons qu'une courte réponse au format HTML.
+Nous indiquons donc que nous fermerons la connexion après cette réponse :
+  Connection: close
+et que son contenu est du texte formaté en HTML (afin que le client sache
+comment interpréter la séquence d'octets qu'il obtiendra après l'entête) :
+  Content-Type: text/html
+Nous saisissons la ligne de texte vide qui signifie la fin de l'entête de la
+réponse HTTP :
+  <-- [Return]
+et nous fournissons enfin le contenu utile (la courte page HTML) :
+  <html><body>
+  <hr><p>This is my <i>first</i> <b>reply</b>!</p><hr>
+  </body></html>
+  <-- [Control]+[d]
+que nous terminons comme convenu par la fin-de-fichier.
+Ceci doit provoquer l'affichage dans le navigateur de cette courte page au
+format HTML (interprétation des lignes, de l'italique, du gras...).
+
+Cette expérimentation préalable illustre donc la manière dont notre programme
+serveur HTTP devra se comporter.
+Il s'agit avant tout d'un serveur TCP semblable à ceux que nous avons déjà
+réalisés ; nous adopterons ici encore l'architecture multi-threads.
+
+En complétant le point {A-1} du programme fourni, vous créerez la socket
+d'écoute TCP associée au port choisi en ligne de commande (sa fermeture est
+déjà réalisée en fin de programme).
+Puisque nous ne nous soucions pour l'instant que de HTTP (pas HTTPS), la
+boucle d'acceptation des connexions sera réalisée dans la fonction
+``runHttpServer()'' au niveau des points {A-2} et {A-3}.
+La fonction ``dialogThread()'' exécutée par le thread suite à l'acceptation
+d'une connexion reprend la forme que nous avons déjà utilisée pour nos
+précédents serveurs TCP.
+Pour l'instant cette fonction ne fait aucun traitement utile et se termine
+immédiatement.
+En l'état, il ne s'agit donc que d'un serveur TCP inutile qui déconnecte
+immédiatement les connexions qu'il accepte.
+
+Documentation à consulter :
+  Memo_HTTP.pdf
+  crs::socket() --> man 2 socket
+  crs::bind()   --> man 2 bind
+  crs::listen() --> man 2 listen
+  crs::accept() --> man 2 accept
+  std::thread   --> http://en.cppreference.com/w/cpp/thread
+
+==============================================================================
+B) Échange requête/réponse HTTP minimal
+
+Maintenant que notre serveur TCP est en place, nous abordons le dialogue en
+HTTP à proprement parler.
+Comme nous l'avons vu lors de l'expérimentation préalable, dès que la
+connexion est établie, le serveur reçoit la requête HTTP du client.
+
+En complétant le point {B-1} du programme fourni, nous recevons ligne par
+ligne l'entête de la requête HTTP en s'arrêtant à la ligne vide qui en marque
+la fin (nous ignorerons dans un premier temps ce qui concerne HTTPS).
+Cette boucle de lecture d'entête HTTP est assez similaire à celle que nous
+avions utilisée lors de la réalisation d'un client HTTP.
+Toutefois, ici nous ne nous contentons pas de consommer aveuglément les lignes
+en en ignorant le contenu ; il nous faut au contraire en extraire les
+informations qui seront pertinentes pour produire la réponse.
+Il s'agit de la méthode HTTP (GET, POST...) et de la ressource demandée
+sur la première ligne, et de l'option ``Connection:'' pour savoir si le
+client nous demande de fermer la connexion après notre réponse (si ``close''
+n'est pas réclamé en HTTP/1.1 alors ``keep-alive'' représente le choix par
+défaut ; la même connexion sera réutilisée pour plusieurs requêtes/réponses).
+N'hésitez pas à afficher les lignes de l'entête pour visualiser la requête
+formulée par le client.
+
+Désormais, nous pouvons envisager de produire la réponse.
+Nous commençons d'emblée par le cas qui signale que la ressource demandée ne
+pourra pas être délivrée !
+Ce sera la seule réponse possible à cette étape mais ce deviendra le cas par
+défaut lors des étapes ultérieures.
+Au niveau du point {B-2} nous préparons le document qui constituera le contenu
+de la réponse ; il n'est pas du tout question ici de protocole HTTP mais
+juste d'un message en HTML lisible par l'utilisateur du navigateur (inspirez
+vous de l'exemple que nous avons utilisé lors de l'expérimentation
+préparatoire avec la commande nc).
+
+Maintenant que le contenu de la réponse est connu, nous pouvons préparer
+un entête HTTP qui annoncera notre réponse au client.
+Le point {B-3} du programme fourni est consacré à cet entête de réponse.
+Puisqu'il s'agit de signaler un échec, nous nous contenterons comme première
+ligne d'entête de :
+  HTTP/1.1 404 Not Found
+L'option ``Connection:'' doit ensuite être précisée, ainsi que
+``ContentType:'' qui doit annoncer que notre document est un texte formaté en
+HTML et ``Content-Length:'' qui en indique la longueur.
+Attention à ne pas oublier la ligne vide qui marque la fin de l'entête !
+Puisque notre serveur HTTP pourra à terme être contacté par des clients HTTP
+de toutes sortes, il est recommandé de terminer les lignes de texte par "\r\n"
+plutôt que simplement "\n" au cas où un tel client fonctionnerait sous
+Windows (ce système code les fins de ligne avec ces deux caractères).
+Il ne reste plus qu'à envoyer, dans la connexion qui nous relie au client,
+cet entête suivi du contenu préalablement préparé.
+
+Pour tester cette version minimaliste de notre serveur HTTP, il suffit de le
+lancer de cette façon :
+  $ ./prog_static_http_server numéro_de_port
+en choisissant arbitrairement le numéro de port (>1024).
+Le navigateur pourra alors le solliciter :
+  $ firefox http://localhost:numéro_de_port/ceci/cela
+Vous devriez constater que votre serveur reçoit bien la requête du navigateur
+et produit en réponse votre document HTML que le navigateur affiche.
+Saisissez dans la barre d'adresse de votre navigateur diverses ressources
+(à la place de ``/ceci/cela'') afin de constater que votre serveur distingue
+bien à chaque fois la ressource demandée.
+
+En l'état, vous disposez d'un serveur HTTP minimal qui sait recevoir et
+interpréter correctement une requête d'un client pour lui fournir une réponse
+formulée correctement que ce dernier pourra recevoir et interpréter.
+Remarquez que, par défaut, le navigateur ne réclame pas que la connexion soit
+fermée après la réponse ; la même connexion TCP est donc utilisée pour
+plusieurs échanges successifs.
+
+Documentation à consulter :
+  Memo_HTTP.pdf
+  crs::recvLine() --> man 2 recv
+  crs::send()     --> man 2 send
+
+==============================================================================
+C) Transfert de fichier
+
+Nous cherchons maintenant à rendre notre serveur HTTP un peu plus utile en
+lui permettant de délivrer des documents préalablement préparés dans des
+fichiers ; ainsi, sa réponse ne sera plus systématiquement un message
+d'erreur.
+Vous remarquerez qu'après la réception de l'entête de la requête HTTP, le
+code de notre programme contient des opérations sur des chaînes de caractères
+afin de déterminer quel fichier correspond à la ressource spécifiée dans la
+requête.
+De plus, l'extension du nom de fichier en question est utilisée afin de
+deviner la nature des informations inscrites dans ce fichier (ce procédé est
+très discutable mais a le mérite d'être simple).
+Assurez vous d'avoir compris l'effet de ces opérations.
+
+En complétant le point {C-1} du programme fourni, vous vérifierez que le
+fichier déduit de la ressource réclamée est bien accessible ; il est donc
+envisageable d'en transférer le contenu vers le client.
+
+Il vous faut alors compléter le point {C-2} pour rédiger et envoyer un entête
+de réponse HTTP.
+Nous nous apprêtons à délivrer l'information demandée donc la première ligne
+de cet entête doit contenir :
+  HTTP/1.1 200 OK
+Pour les options, il suffit de s'inspirer de ce que vous avez fait pour le
+message d'erreur.
+
+Il ne reste plus alors qu'à compléter le point {C-3} afin de recopier le
+contenu du fichier désigné vers la connexion TCP.
+
+En l'état, vous obtenez un serveur HTTP très simple permettant de délivrer
+des documents préalablement préparés dans des fichiers.
+La racine du site en question est matérialisée par le sous-répertoire
+``TopDir'' de notre répertoire de travail.
+Utilisez votre navigateur pour suivre les liens des divers documents
+proposés.
+Vérifiez également qu'il délivre toujours son message d'erreur lorsque vous
+lui réclamez une ressource incorrecte.
+Vous constaterez que le rendu des pages (légèrement) élaborées ne repose
+que sur de multiples requêtes simples (les images, les liens...) auxquelles
+votre serveur sait répondre ; tout le travail de mise en forme concerne le
+navigateur.
+En effet, la communication d'informations par le protocole HTTP et la
+visualisation de documents HTML sont deux choses tout à fait distinctes.
+Nous avons naturellement tendance à en faire l'amalgame puisque les
+navigateurs traitent de ces deux aspects, mais le protocole HTTP peut
+servir à délivrer des informations quelconques qui n'ont rien à voir avec
+l'affichage de documents (c'est un simple moyen de communication).
+Beaucoup d'applications sont d'ailleurs prévues pour interopérer par ce moyen
+(notamment à cause des politiques de sécurité, voir le sujet précédent).
+
+Documentation à consulter :
+  Memo_HTTP.pdf
+  crs::isFile()  --> man 2 stat
+  crs::access()  --> man 2 access
+  crs::send()    --> man 2 send
+  crs::openR()   --> man 2 open
+  crs::read()    --> man 2 read
+  crs::sendAll() --> man 2 send
+  crs::close()   --> man 2 close
+
+==============================================================================
+D) Support de HTTPS
+
+Nous visons maintenant à offrir le support des communications sécurisées par
+HTTPS.
+Notre serveur devra donc écouter sur deux ports TCP à la fois : un pour les
+communications en HTTP, un autre pour les communications en HTTPS.
+
+Le programme fourni prend en compte un nouvel argument sur sa ligne de
+commande ; il sera interprété comme le numéro de port pour la seconde
+socket d'écoute que vous devrez créer au niveau du point {D-1}.
+
+Maintenant que nous prenons en compte HTTP et HTTPS, la boucle d'acceptation
+des connexions sera réalisée dans la fonction ``runHttpAndHttpsServer()''.
+Au delà de la création d'un contexte SSL nécessaire aux aspects sécurisés,
+la particularité de cette fonction est qu'elle doit surveiller deux sockets
+à la fois.
+Nous avons déjà rencontrer cette problématique dans les exercices sur les
+sockets, et nous réutiliserons ici la même solution : la scrutation passive
+par l'appel système ``select()''.
+Le point {D-2} du code fourni réalise cette opération alors que les points
+{D-3} et {D-4} acceptent les demandes de connexions sur l'une au l'autre des
+sockets d'écoute et lancent un thread qui utilisera ou non le contexte SSL
+pour la communication sécurisée.
+
+La fonction ``dialogThread()'' crée et détruit un objet de communication SSL
+s'appuyant sur la socket de dialogue TCP dans le cas d'une connexion sur le
+port dédié à HTTPS.
+La mise en oeuvre de SSL est détaillée dans le document ``SSL_HTTPS.pdf'' mais
+le fichier utilitaire ``crsUtils.hpp'' nous propose d'en cacher les détails et
+ainsi faciliter la réalisation dans le cadre de cet exercice.
+L'adaptation du dialogue consiste simplement à utiliser, lorsqu'il existe,
+cet objet de communication SSL en lieu et place de la socket de dialogue.
+Il suffit pour cela d'envisager les opérations d'envoi et de réception de
+ces deux cas au niveau des points {B-1}, {C-2}, {C-3} et {B-3}.
+
+Pour tester cette nouvelle version de notre serveur HTTP, il suffit de le
+lancer de cette façon :
+  $ ./prog_static_http_server numéro_de_port_http numéro_de_port_https
+en choisissant arbitrairement les deux numéros de port (>1024).
+Le navigateur pourra alors le solliciter :
+  $ firefox https://localhost:numéro_de_port_https/
+Puisque ce serveur rudimentaire utilise un certificat auto-signé (aspect
+discuté en cours, suivant le document ``Chiffrement_Authentification.pdf''),
+le navigateur va probablement vous signaler qu'il ne lui fait pas confiance.
+Nous savons que nous sommes justement dans le cadre d'une expérimentation
+autour de HTTPS, nous pouvons alors passer outre ces avertissements de
+sécurité.
+Vous devez constater que votre serveur se comporte exactement de la même
+façon en HTTP et en HTTPS (à la sécurisation près).
+
+Arrivé à la fin de cet exercice, et conjointement avec le sujet précédent qui
+traitait des clients, vous avez maintenant en main les quelques briques de
+base qui suffisent à réaliser des applications interagissant depuis des sites
+distants pour lesquels les communications directes sur des ports TCP ou UDP
+quelconques ne sont pas autorisées (l'usage de HTTP et HTTPS est en général
+autorisé, éventuellement à travers un proxy).
+
+Documentation à consulter :
+  Memo_HTTP.pdf
+  crs::socket()      --> man 2 socket
+  crs::bind()        --> man 2 bind
+  crs::listen()      --> man 2 listen
+  crs::select()      --> man 2 select
+  crs::accept()      --> man 2 accept
+  std::thread        --> http://en.cppreference.com/w/cpp/thread
+  crs::sslAccept()   --> man 3 SSL_accept
+  crs::sslClose()    --> man 3 SSL_free
+  crs::sslRecvLine() --> man 3 SSL_read
+  crs::sslSend()     --> man 3 SSL_write
+  crs::sslSendAll()  --> man 3 SSL_write
+
+==============================================================================

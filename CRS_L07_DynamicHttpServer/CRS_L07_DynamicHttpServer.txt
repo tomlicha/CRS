@@ -1,0 +1,232 @@
+==============================================================================
+Serveur HTTP/HTTPS dynamique                    (Fabrice Harrouet, module CRS)
+==============================================================================
+
+Nous réutilisons ici nos connaissances en matière de communication HTTP et de
+programmation système en général pour réaliser un serveur HTTP (et HTTPS) qui
+fournit du contenu généré dynamiquement.
+
+Il s'agira principalement de :
+ - fournir un message simple généré à la volée,
+ - découvrir et fournir la liste du contenu d'un répertoire,
+ - transmettre le résultat de l'exécution d'un programme externe.
+
+La consultation de la documentation est très importante et fait partie
+intégrante du travail.
+Pour ceci vous disposez des pages de manuel indiquées à chaque exercice ainsi
+que des documents disponibles sur :
+  http://www.enib.fr/~harrouet/courses.html
+En particulier, le document ``Memo_HTTP.pdf'' devrait beaucoup vous guider
+puisqu'il décrit la structure des requêtes et des réponses HTTP.
+Le fichier d'entête ``crsUtils.hpp'' doit également être consulté très
+régulièrement puisqu'il fournit, au delà de quelques fonctionnalités
+utilitaires, la mise à disposition dans une forme facilitée pour les étudiants
+(limitation des pointeurs, des conversions de types, utilisation de chaînes
+et vecteurs C++, contrôle des échecs...) des appels et fonctionnalités
+systèmes que nous utiliserons.
+
+Vous êtes censés savoir refaire et réutiliser cet exercice lors des
+séances ultérieures ; n'hésitez donc pas à poser des questions lors de cette
+séance et à le refaire tout seul ensuite pour vous entraîner.
+
+==============================================================================
+A) Contenu du journal d'activité
+
+Cet exercice vient compléter le serveur HTTP/HTTPS statique réalisé dans le
+sujet précédent.
+Les fonctions ``main()'', ``runHttpServer()'' et ``runHttpAndHttpsServer()''
+sont donc déjà fournies et semblables à la précédente réalisation.
+Elles ont juste été étendues par l'usage d'un objet utilitaire ``log'' qui
+sert de prétexte à cette étape.
+En effet, cet objet est un journal qui consigne un ensemble d'événements se
+produisant sur notre serveur (connexions, déconnexions, requêtes).
+Nous envisageons ici de proposer à un client une visualisation de ce journal
+lorsqu'il réclamera la ressource particulière "/server_log".
+
+En complétant le point {A-1} du programme fourni, vous rédigerez une page
+HTML simple qui illustre le contenu de ce journal d'activité.
+Il suffira ensuite de compléter le point {A-2} pour produire et envoyer
+l'entête de réponse HTTP annonçant ce contenu qui sera envoyé à la suite
+(ceci est très similaire au cas d'erreur 404 déjà réalisé).
+
+Testez votre serveur en HTTP et HTTPS depuis votre navigateur afin de
+constater l'évolution dynamique du journal d'activité.
+
+Documentation à consulter :
+  Memo_HTTP.pdf
+  std::vector    --> http://en.cppreference.com/w/cpp/container/vector
+  crs::send()    --> man 2 send
+  crs::sslSend() --> man 3 SSL_write
+
+==============================================================================
+B) Liste du contenu d'un répertoire
+
+Il est courant, si un répertoire ne contient pas de fichier ``index.html'',
+qu'un serveur HTTP produise une page HTML qui affiche la liste du contenu de
+ce répertoire lorsqu'il fait l'objet d'une requête.
+Nous nous proposons ici de fournir une telle fonctionnalité.
+
+Après la lecture de l'entête de la requête HTTP, le code fourni s'assure que
+le chemin désigne bien un fichier ``index.html'' s'il est présent dans le
+répertoire qui fait l'objet de la requête.
+En complétant le point {B-1} du programme fourni, nous traitons le cas où un
+tel fichier n'est pas trouvé alors que la ressource désignée est un répertoire.
+Il s'agit à nouveau de produire une page HTML lisible par l'utilisateur afin
+de lui offrir des liens vers les éléments du répertoire en question.
+La démarche est très semblable à celle de l'étape précédente ; elle doit
+également être complétée par le point {B-2} qui produit et envoie l'entête de
+réponse HTTP annonçant ce contenu qui sera envoyé à la suite.
+
+Testez votre serveur en HTTP et HTTPS depuis votre navigateur afin de
+constater le bon comportement de cette fonctionnalité.
+Votre navigateur doit non seulement être en mesure d'afficher la liste du
+contenu d'un sous-répertoire, mais doit également permettre de suivre les
+liens sur les éléments indiqués.
+
+Cette étape et la précédente ne consistaient, somme toute, qu'en un simple
+travail de formatage du contenu transmis (des pages HTML ici) mais
+n'apportaient rien de nouveau à la manière de transmettre ce contenu en HTTP
+(très similaire à la première réponse 404 du serveur HTTP statique).
+Ceci illustre le fait que les quelques connaissances acquises en matière de
+communication HTTP sont directement applicables sans plus de complication
+à des sujets applicatifs variés (seul le contenu, spécifique à l'application,
+nécessite un traitement dédié).
+
+Documentation à consulter :
+  Memo_HTTP.pdf
+  std::vector    --> http://en.cppreference.com/w/cpp/container/vector
+  crs::isDir()   --> man 2 stat
+  crs::send()    --> man 2 send
+  crs::sslSend() --> man 3 SSL_write
+
+==============================================================================
+C) Processus CGI en HTTP
+
+Nous proposons ici une fonctionnalité qui permet d'étendre largement le champ
+d'action de notre serveur HTTP.
+Il s'agit de lui faire exécuter un programme externe dans un processus enfant
+qui produira le contenu devant être délivré au client.
+Ce procédé est décrit ici :
+  https://en.wikipedia.org/wiki/Common_Gateway_Interface
+
+Par convention, les programmes sont placés dans un sous-répertoire dédié à cet
+effet ("/cgi-bin/" ici).
+Ce sont des fichiers exécutables (scripts, programmes compilés...) qui sont
+censés lire leur entrée standard et produire du contenu sur leur sortie
+standard.
+Nos connaissances en matière de redirection d'entrées/sorties et de
+recouvrement de processus nous seront alors utiles afin qu'un tel programme
+utilise la connexion TCP qui relie le client et le serveur HTTP en lieu et
+place de ses entrées/sorties standards.
+
+De tels programmes sont susceptibles de recevoir de l'information depuis le
+client après que l'entête de la requête soit reçu ; c'est le cas des requêtes
+selon la méthode POST (voir le document ``Memo_HTTP.pdf'').
+Dans ce cas, une telle requête doit contenir une option ``Content-Length:''
+indiquant la quantité de données que le client envoie après l'entête.
+En intervenant sur le point {C-1} du programme fourni, la réception de
+l'entête de la requête HTTP sera complétée par la détection d'une telle
+option.
+Celle-ci pourra alors être transmise ultérieurement au processus CGI afin
+qu'il consomme les données annoncées.
+
+Lorsque la ressource demandée est bien un fichier exécutable du
+sous-répertoire "/cgi-bin/", le point {C-2} de notre programme doit
+commencer par rédiger et envoyer le début de l'entête de réponse HTTP.
+Il ne s'agit en effet que du début de cet entête car la fin relève du
+processus CGI qui sera exécuté ; en particulier c'est ce dernier qui connaît
+la nature des données (``Content-Type:'') qu'il produira.
+C'est donc le processus CGI qui enverra la fin de l'entête, avec sa ligne
+vide, et le contenu utile qui suivra.
+
+Comme indiqué plus haut, le point {C-3} du programme fourni revient à
+utiliser un processus enfant afin que celui-ci opère des redirections
+d'entrées/sorties sur la connexion TCP avant d'être recouvert par le
+programme choisi.
+Une connexion TCP est en effet bidirectionnelle et peut donc servir à la fois
+d'entrée standard et de sortie standard.
+Il reste toutefois à transmettre quelques consignes au processus en question
+afin qu'il adapte son comportement en conséquence : il s'agit (pour faire
+simple ici) de la méthode, de l'URI et de l'option ``Content-Length:''
+de la requête HTTP reçue.
+Nous avons recours pour cela à des variables d'environnement ; ce sont des
+variable textuelles qui ont la propriété d'être conservées après une
+opération de recouvrement.
+Ainsi, si le processus enfant initialise ces trois variables d'environnement
+avant le recouvrement, alors le nouveau programme exécuté dans l'enfant pourra
+consulter ces mêmes variables et retrouver leurs valeurs pour les interpréter.
+
+En l'état, vous pouvez tester cette nouvelle fonctionnalité de votre serveur
+en invoquant le script et les formulaires depuis votre navigateur.
+Vérifiez que le script est un simple programme ``shell'' qui invoque quelques
+commandes qui produisent dynamiquement du contenu (la date notamment).
+Vérifiez également que les formulaires (méthodes GET et POST) provoquent bien
+l'invocation d'un programme qui réagit aux informations fournies par le client
+(l'utilisateur du navigateur ici).
+Étudiez avec attention la transmission de ces informations par le client pour
+chacune de ces deux méthodes.
+
+Documentation à consulter :
+  Memo_HTTP.pdf
+  crs::send()    --> man 2 send
+  crs::sslSend() --> man 3 SSL_write
+  crs::fork()    --> man 2 fork
+  crs::waitpid() --> man 2 waitpid
+  crs::setenv()  --> man 3 setenv
+  crs::dup2()    --> man 2 dup2
+  crs::close()   --> man 2 close
+  crs::exec()    --> man 2 execve
+
+==============================================================================
+D) Processus CGI en HTTPS
+
+L'exécution des processus CGI telle qu'elle vient d'être réalisée est
+suffisante en HTTP mais ne peut pas fonctionner en HTTPS.
+En effet, lors du recouvrement du processus enfant, toute la partie
+applicative de l'objet de communication SSL qui enveloppait la connexion TCP
+disparaît et seule la connexion ``nue'' subsiste.
+Si le programme exécuté dans l'enfant utilise directement cette connexion pour
+transmettre du contenu ``en clair'', alors il y aura nécessairement une
+incompréhension avec le client HTTP qui, lui, utilise toujours son objet de
+communication SSL à l'autre extrémité.
+Il est donc impossible d'utiliser la connexion TCP pour rediriger les
+entrées/sorties du processus enfant en HTTPS.
+
+Le point {D-1} du programme fourni propose alors d'effectuer cette redirection
+dans une socket ``locale''.
+Il s'agit d'un moyen de communication semblable aux tubes mais fonctionnant de
+manière bidirectionnelle : on peut lire et écrire à chacune des deux
+extrémités ; ce qui est écrit sur l'une est lisible sur l'autre et
+réciproquement.
+Le processus enfant utilisera l'une des deux extrémités pour sa redirection et
+fermera l'autre.
+Le thread qui joue le rôle de parent pour ce processus enfant n'aura alors
+plus qu'à effectuer un relai bidirectionnel en transmettant les données
+provenant de l'objet de communication SSL vers la seconde extrémité de la
+socket locale et réciproquement jusqu'à détecter une fin-de-fichier sur l'un
+ou l'autre.
+
+Désormais, vous pouvez vérifier que votre serveur délivre les mêmes services
+en HTTP et en HTTPS.
+Nous sommes partis d'une solution fournissant des données statiques préparées
+à l'avance (sujet précédent) pour l'étoffer en fournissant quelques services
+simples produisant un contenu généré à la volée, et enfin en proposant
+l'exécution de programmes externes capables d'interagir avec le client.
+
+Documentation à consulter :
+  Memo_HTTP.pdf
+  crs::socketpair() --> man 2 socketpair
+  crs::fork()       --> man 2 fork
+  crs::waitpid()    --> man 2 waitpid
+  crs::setenv()     --> man 3 setenv
+  crs::dup2()       --> man 2 dup2
+  crs::close()      --> man 2 close
+  crs::exec()       --> man 2 execve
+  crs::select()     --> man 2 select
+  crs::sslPending() --> man 3 SSL_pending
+  crs::sslRecv()    --> man 3 SSL_read
+  crs::sendAll()    --> man 2 send
+  crs::recv()       --> man 2 recv
+  crs::sslSendAll() --> man 3 SSL_write
+
+==============================================================================

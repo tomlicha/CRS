@@ -1,0 +1,456 @@
+==============================================================================
+Communication réseau en UDP                     (Fabrice Harrouet, module CRS)
+==============================================================================
+
+Il s'agit d'une série d'exercices en rapport avec la communication entre
+des processus répartis sur différentes machines à travers des réseaux.
+Au cours de cette séance nous ne nous appuierons que sur le protocole UDP,
+afin d'en découvrir l'usage et d'en constater les caractéristiques.
+
+Chaque programme est volontairement très simple afin de se focaliser sur la
+découverte des services proposés sans être distrait par les détails annexes
+d'une quelconque application particulière.
+Il convient de traiter ces exercices tranquillement, en s'interrogeant à
+chaque fois sur le propos de la fonctionnalité particulière qui est mise en
+avant.
+Il ne sert strictement à rien d'enchaîner les exercices sans les comprendre
+en se contentant de :
+  ``ça compile et ça ne plante pas donc j'ai bon, je passe à la suite''
+
+La consultation de la documentation est très importante et fait partie
+intégrante du travail.
+Pour ceci vous disposez des pages de manuel indiquées à chaque exercice ainsi
+que des documents disponibles sur :
+  http://www.enib.fr/~harrouet/courses.html
+En particulier, le document ``Memo_Sockets.pdf'' devrait beaucoup vous guider
+puisqu'il donne les portions de code usuelles qui servent de briques de base
+pour les communications en réseau (créer des sockets, choisir un port,
+recevoir, envoyer...). Les exercices/exemples suivants ont d'ailleurs été
+conçus pour que vous réutilisiez facilement les informations du document en
+question.
+Le fichier d'entête ``crsUtils.hpp'' doit également être consulté très
+régulièrement puisqu'il fournit, au delà de quelques fonctionnalités 
+utilitaires, la mise à disposition dans une forme facilitée pour les étudiants 
+(limitation des pointeurs, des conversions de types, utilisation de chaînes
+et vecteurs C++, contrôle des échecs...) des appels et fonctionnalités
+systèmes que nous utiliserons.
+
+Vous êtes censés savoir refaire et réutiliser tous ces exercices lors des
+séances ultérieures ; n'hésitez donc pas à poser des questions lors de cette
+séance et à les refaire tout seul ensuite pour vous entraîner.
+
+==============================================================================
+prog01_ip_address.cpp : Les communications reposent sur la notion d'adresse IP
+                        mais les êtres humains désignent plus volontiers les
+                        machines par un nom de domaine.
+
+Pour qu'une machine soit désignée par un nom de domaine, il faut qu'un tel
+nom lui ait été attribué.
+En complétant le point {1} du programme fourni, vous constaterez le nom de la
+machine sur laquelle vous travaillez.
+L'exécution du programme doit afficher le même nom que celui obtenu par la
+commande UNIX
+  $ hostname
+
+Si de tels noms peuvent être évocateurs pour des êtres humains, ils ne sont
+d'aucune utilité en tant que tels dans les moyens techniques de communication.
+En effet, à ce niveau les interlocuteurs sont désignés par leurs adresses IP
+respectives qui leur ont également été attribuées à l'avance.
+En complétant le point {2} du programme fourni, vous prendrez connaissance des
+adresses IP (un entier de 4 octets en IPv4) qui correspondent à des noms de
+domaine choisis.
+S'il est question d'afficher de telles adresses (par curiosité ici), la forme
+conventionnelle est dite décimale-pointée (4 entiers décimaux séparés par
+des points) ; c'est ce qui est utilisé dans ce programme.
+
+Voici un exemple de trace d'exécution :
+  $ ./prog01_ip_address poivre7 toto 74.114.88.139 gcc.gnu.org
+  current host name is 'menthe22.enib.fr'
+  'menthe22.enib.fr' host has IP address '192.168.73.182'
+  'poivre7' host has IP address '192.168.73.207'
+  unknown IP address for host 'toto'
+  '74.114.88.139' host has IP address '74.114.88.139'
+  'gcc.gnu.org' host has IP address '209.132.180.131'
+
+Remarquez que la saisie d'une adresse IP à la place d'un nom ne pose pas de
+problème ; elle est simplement analysée comme telle même si elle n'est
+attribuée à aucun équipement.
+Assurez-vous d'avoir constaté que ce même mécanisme sert aussi bien à résoudre
+des noms du domaine courant (enib.fr ici) que des noms d'autres domaines.
+Vous devriez également constater que le succès de la résolution d'un nom de
+domaine n'est pas lié au fait que la machine en question soit joignable,
+ni même allumée (voire existante) ; il ne s'agit que de l'association entre
+un nom et une adresse IP (indépendamment du fait que cette adresse ait
+effectivement été attribuée à un équipement et que celui-ci soit en état de
+fonctionnement).
+
+Documentation à consulter :
+  Memo_Sockets.pdf
+  crs::gethostname()       --> man 3 gethostname
+  crs::gethostbyname()     --> man 3 gethostbyname
+  crs::formatIpv4Address() --> man 3 inet_ntoa
+
+==============================================================================
+prog02_txt_udp_server.cpp : Réception d'une requête et envoi d'une réponse
+                            à l'aide du protocole UDP (version textuelle).
+
+Ce programme est un serveur dans le sens où il n'est pas à l'initiative
+des échanges d'information.
+Il attend d'être sollicité par la requête d'un client (a priori inconnu de
+lui) et produit alors une réponse vers ce dernier (qui est désormais connu
+grâce à la requête).
+Il ne s'agit dans cet exemple que de simples messages textuels.
+
+Le programme serveur est lancé en choisissant sur sa ligne de commande un
+numéro de port (>1024, sinon il faut des privilèges sur la machine).
+En complétant le point {1} du programme fourni, vous allez créer une
+socket UDP qui sera associée à ce numéro de port.
+Désormais, tout message UDP à destination de ce port sur votre machine
+vous sera rendu disponible en réception à travers cette socket.
+
+Dès qu'on accède à des ressources du système (ici la socket), il convient de
+se poser la question de la libération de ces ressources.
+En complétant le point {2} du programme fourni, vous fermerez la socket
+lorsqu'elle ne sera plus utile (à la fin du programme).
+nb : Dans cet exemple simpliste la fin du programme ne sera jamais atteinte
+     mais ce n'est pas grave, c'est tout de même un bon principe à suivre de
+     manière systématique.
+
+La partie active du programme est une boucle dans laquelle s'enchaînent 
+requêtes et réponses.
+En complétant le point {3} du programme fourni, votre programme se met
+en attente du prochain message UDP qui arrivera sur le port surveillé.
+Nous l'interpréterons comme une requête textuelle que nous afficherons
+ainsi que les coordonnées de son émetteur (extraites de l'entête UDP/IP du
+message reçu et rendues disponibles par le système d'exploitation).
+
+Il n'y a plus alors qu'à compléter le point {4} du programme fourni afin
+de renvoyer une réponse (textuelle à nouveau ici) à cet interlocuteur
+que nous venons tout juste de découvrir.
+
+Pour tester ce programme, nous le lançons tout d'abord dans un terminal :
+  $ ./prog02_txt_udp_server 9876
+  host 'menthe23.enib.fr' waiting for an UDP message on port '9876'...
+Notre programme nous rappelle le nom de notre de machine ainsi que le port
+que nous avons choisi arbitrairement sur sa ligne de commande (>1024).
+
+Dans un autre terminal nous utilisons le client générique nc :
+  $ nc -u menthe23 9876
+(bien entendu il faut adapter le nom de la machine et le port).
+Cette commande se contente d'envoyer ce qu'on saisit au clavier vers
+la destination indiquée (en UDP ici), et affiche ce qu'elle reçoit.
+Vous devriez donc constater que chaque saisie dans ce terminal provoque
+un affichage du texte saisi reçu sur votre serveur, puis une réponse formulée
+par votre serveur qui apparaît dans ce même terminal (celui de nc).
+Pour arrêter (brutalement) cette commande ou votre serveur il suffit de saisir
+la combinaison de touches [Control]+[c] dans leur terminal respectif.
+
+Puisque nous traitons de communication par réseau il est raisonnable de
+solliciter notre serveur depuis une autre machine (ce n'est pas obligatoire,
+nous venons de constater que notre machine peut se solliciter elle même).
+Pour éviter d'avoir à nous déplacer physiquement vers une autre machine,
+nous ouvrons un autre terminal et utilisons une session ssh (accès à distance
+à une autre machine).
+  $ ssh une_autre_machine
+  ******** <-- saisie de votre mot de passe
+  $ hostname
+  ........ <-- vous devez retrouver une_autre_machine
+  $ nc -u menthe23 9876
+La communication entre la commande nc et votre serveur doit également
+fonctionner ; votre serveur communique donc bien à travers le réseau.
+En particulier, vous devez constater que votre serveur répond bien à la
+commande nc jouant le rôle de client alors qu'il ignorait tout de celle-ci
+lors de son lancement (il répond simplement au client qui le sollicite).
+
+Documentation à consulter :
+  Memo_Sockets.pdf
+  man 7 socket
+  man 7 udp
+  crs::socket()   --> man 2 socket
+  crs::bind()     --> man 2 bind
+  crs::close()    --> man 2 close
+  crs::recvfrom() --> man 2 recvfrom
+  crs::sendto()   --> man 2 sendto
+  man 1 nc
+  man 1 ssh
+
+==============================================================================
+prog03_txt_udp_client.cpp : Envoi d'une requête et réception d'une réponse
+                            à l'aide du protocole UDP (version textuelle).
+
+Il s'agit maintenant de remplacer le client générique nc par un client UDP
+que vous réaliserez vous même.
+Ce programme est un client dans le sens où c'est lui qui est à l'initiative
+de la prise de contact.
+Il contacte un serveur UDP en lui transmettant une requête ; ceci implique
+qu'il doit connaître à l'avance (par la ligne de commande ici) les
+coordonnées du serveur qu'il doit solliciter.
+Une fois sa requête émise, il se place en réception de la réponse produite
+par le serveur.
+Il ne s'agit dans cet exemple que de simples messages textuels.
+
+Le programme client est lancé en précisant sur sa ligne de commande le nom
+de domaine et le numéro de port du serveur visé (celui-ci doit donc être
+lancé sur la machine indiquée et surveiller le port en question).
+En complétant le point {1} du programme fourni, vous devez obtenir l'adresse
+IP du serveur choisi en ligne de commande.
+En complétant le point {2} du programme fourni, vous allez créer une socket
+UDP qui vous servira à communiquer avec le serveur.
+
+Dès qu'on accède à des ressources du système (ici la socket), il convient de
+se poser la question de la libération de ces ressources.
+En complétant le point {3} du programme fourni, vous fermerez la socket
+lorsqu'elle ne sera plus utile (à la fin du programme).
+
+La partie active du programme est une boucle dans laquelle s'enchaînent
+requêtes et réponses.
+En complétant le point{4} du programme fourni, votre programme va envoyer
+sa requête au serveur via la socket UDP.
+Cette requête n'est constituée que d'une ligne de texte préalablement
+saisie au clavier.
+
+Il n'y a plus qu'à compléter le point {5} du programme fourni afin de se
+placer en attente du prochain message UDP qui arrivera sur cette même
+socket (la réponse produite par le serveur).
+Nous l'interpréterons comme une réponse textuelle que nous afficherons
+ainsi que les coordonnées de son émetteur (extraites de l'entête UDP/IP du
+message reçu et rendues disponibles par le système d'exploitation,
+celles du serveur normalement).
+
+En l'état, votre programme client UDP doit pouvoir interagir avec votre
+programme serveur UDP.
+Pour le tester, nous lançons tout d'abord le serveur dans un terminal :
+  $ ./prog02_txt_udp_server 9876
+  host 'menthe23.enib.fr' waiting for an UDP message on port '9876'...
+Notre serveur nous rappelle le nom de notre de machine ainsi que le port
+que nous avons choisi arbitrairement sur sa ligne de commande (>1024).
+Dans un autre terminal nous utilisons notre programme client :
+  $ ./prog03_txt_udp_client menthe23 9876
+(bien entendu il faut adapter le nom de la machine et le port).
+Vous devriez constater un comportement similaire à ce que vous obteniez avec
+le client générique nc si ce n'est que votre programme client affiche un peu
+plus d'information que le simple contenu textuel des messages.
+Pour arrêter votre client vous pouvez simuler la fin-de-fichier (EOF) sur
+l'entrée standard en saisissant [Control]+[d] ; notre programme réagit alors
+en quittant sa boucle de dialogue.
+En revanche, en ce qui concerne votre serveur il faudra à nouveau avoir
+recours à la combinaison de touches [Control]+[c] pour provoquer son arrêt
+brutal.
+
+Une fois effectuée cette vérification minimale de la communication entre vos
+programmes client et serveur UDP, vous pouvez passer à des tests variés.
+En vous connectant via ssh (comme précédemment) sur d'autres machines,
+vous pourrez solliciter simultanément votre serveur par plusieurs clients
+depuis des machines variées.
+Constatez tout d'abord que ces multiples dialogues ont lieu sans problème.
+Ensuite arrêtez et relancez un client (ou plusieurs) et constatez que cela
+ne perturbe pas le serveur.
+Faites de même avec le serveur et constatez que cela ne perturbe pas plus
+les clients.
+Vérifiez que la seule situation bloquante pour un client apparaît lorsqu'il
+envoie sa requête alors que le serveur n'est pas encore démarré ; il attend
+alors indéfiniment une réponse qui n'arrivera pas (la requête a été
+silencieusement perdue).
+
+À travers ces quelques essais vous avez vérifié les propriétés les plus
+courantes du protocole UDP :
+- il n'y a pas de connexion, chaque message forme un tout qui n'est en rien
+  lié aux précédents ou aux suivants (sauf au niveau applicatif),
+- les messages peuvent être silencieusement perdus.
+
+Documentation à consulter :
+  Memo_Sockets.pdf
+  man 7 socket
+  man 7 udp
+  crs::gethostbyname() --> man 3 gethostbyname
+  crs::socket()        --> man 2 socket
+  crs::close()         --> man 2 close
+  crs::sendto()        --> man 2 sendto
+  crs::recvfrom()      --> man 2 recvfrom
+  man 1 ssh
+
+==============================================================================
+prog04_bin_udp_server.cpp
+prog05_bin_udp_client.cpp : Lorsque des machines s'échangent des données non
+                            textuelles (binaires), il faut s'assurer que ces
+                            séquences d'octets sont bien interprétées de la
+                            même façon une fois placées dans la mémoire
+                            (processeurs BIG-ENDIAN ou LITTLE-ENDIAN).
+
+Jusqu'alors, nos exemples de programmes communicants s'échangeaient du
+texte sans signification particulière ; le seul but était de constater les
+échanges d'information dans une forme facile à rédiger et à lire pour un
+être humain.
+Si au contraire, il est question dans une application de transmettre des
+données qui doivent être utilisées pour du calcul (des valeurs numériques),
+le recours à du texte est devient alors tout à fait superflu.
+En effet, la transmission d'une valeur numérique sous forme de texte implique
+les étapes suivants :
+- l'émetteur dispose d'une valeur numérique à transmettre,
+- l'émetteur doit formater (``sprintf()'' en C, ``ostringstream'' en C++ ...)
+  la valeur numérique pour obtenir une chaîne de caractères de longueur
+  dépendante de la valeur numérique (ces opérations, bien qu'étant faciles à
+  invoquer dans un programme, sont coûteuses en temps d'exécution pour la
+  machine),
+- l'émetteur doit envoyer vers la socket cette chaîne de caractères de
+  longueur variable,
+- le récepteur doit recevoir depuis la socket une chaîne de caractères de
+  longueur variable (comment connaître la longueur optimale à l'avance ?),
+- le récepteur doit analyser (``sscanf()'' en C, ``istringstream'' en C++ ...)
+  la chaîne de caractères reçue pour en extraire la valeur numérique
+  (ces opérations, bien qu'étant faciles à invoquer dans un programme, sont
+  extrêmement coûteuses en temps d'exécution pour la machine),
+- le récepteur dispose désormais de la valeur numérique transmise par
+  l'émetteur et peut enfin l'exploiter.
+
+À l'opposé, la transmission binaire d'information revient à transférer via
+la socket, les octets constitutifs (à un détail près) des variables qui les
+contiennent sans recourir aux coûteuses phases de formattage/analyse de
+texte.
+De plus, la quantité d'information à transmettre est déterminée à l'avance
+par le type (choisi une fois pour toutes) des informations à échanger et non
+par leur valeur, ce qui simplifie notamment l'étape de réception depuis la
+socket.
+Seulement, il convient d'être prudent : en effet, toutes le machines
+n'utilisent pas le même ordre pour ranger en mémoire les octets constitutifs
+d'une variable ; certaines (BIG-ENDIAN) considèrent que les adresses basses
+correspondent aux poids forts de la valeur alors que d'autres (LITTLE-ENDIAN)
+interprètent les adresses basses comme les poids faibles.
+Si nous échangions sans précaution les octets constitutifs d'une telle
+variable entre deux machines d'architectures hétérogènes, les octets reçus ne
+seraient pas interprétés dans le même ordre et fourniraient une valeur
+numérique tout à fait différente de l'originale !
+La convention choisie dans les protocoles réseau consiste à tout transmettre
+dans un ordre déterminé : l'ordre réseau (BIG-ENDIAN en l'occurrence).
+Les machines dont l'ordre hôte est le même n'ont rien à faire sur les données
+transmises alors que celles qui utilisent l'ordre hôte alternatif
+(LITTLE-ENDIAN) doivent systématiquement permuter les octets des variables
+transmises avant leur émission et après leur réception.
+Heureusement, il existe des fonctionnalités (``ntohs()'', ``htons()'',
+``ntohl()'', ``htonl()'') qui se chargent de ce choix pour nous ; il nous
+suffit de les utiliser systématiquement et elles permutent ou non les
+octets selon le besoin (selon l'ordre hôte de la machine courante).
+
+Le code source du programme ``prog04_bin_udp_server.cpp'' doit être complété
+en s'inspirant largement de ce qui a déjà été fait dans
+``prog02_txt_udp_server.cpp'' ; il s'agit en effet d'un serveur UDP.
+En particulier, la création de la socket UDP (point {1}) et sa fermeture
+(point {2}) sont strictement identiques à la version textuelle.
+La différence avec la version textuelle tient dans la boucle de dialogue
+qui ne suppose désormais plus avoir affaire à du texte mais à des données
+binaires (des entiers de 32 bits ici).
+En complétant les points {3}, {4}, {5} et {6} de ce programme, vous devez
+réaliser toutes les opérations de réception, conversion d'ordre, et envoi
+nécessaires à l'échange des informations numériques (recevoir un entier
+de 32 bits et renvoyer son double et son carré).
+
+De la même façon, le code source du programme ``prog05_bin_udp_client.cpp''
+doit être complété en s'inspirant largement de ce qui a déjà été fait dans
+``prog03_txt_udp_client.cpp'' ; il s'agit en effet d'un client UDP.
+En particulier, la détermination de l'adresse IP du serveur (point {1}), la
+création de la socket UDP (point {2}) et sa fermeture (point {3}) sont
+strictement identiques à la version textuelle.
+La différence avec la version textuelle tient dans la boucle de dialogue
+qui ne suppose désormais plus avoir affaire à du texte (à l'exception de
+la saisie au clavier, pour des raisons de facilité ici) mais à des données
+binaires (des entiers de 32 bits ici).
+En complétant les points {4}, {5}, {6} et {7} de ce programme, vous devez
+réaliser toutes les opérations de conversion d'ordre, envoi et réception
+nécessaires à l'échange des informations numériques (envoyer un entier
+de 32 bits et en recevoir deux en réponse).
+
+Désormais, ces deux nouveaux programmes serveur et client UDP doivent pouvoir
+échanger leurs informations binaires ; testez leur fonctionnement, aussi bien
+en local qu'à distance depuis plusieurs machines.
+Vérifiez avec attention les valeurs numériques échangées afin de vérifier
+qu'elle sont bien interprétées correctement ; vous pouvez notamment ``oublier
+volontairement'' les conversions d'ordre dans un seul des deux programmes
+(serveur ou client) afin de constater les valeurs numériques aberrantes
+utilisées.
+nb: ici en salle de Labo, le parc de machines est homogène donc si toutes
+les opérations de conversion d'ordre sont oubliées l'application fonctionne
+correctement en apparence ; ce ne serait toutefois plus le cas si nous devions
+communiquer avec des machines à l'architecture inconnue !
+
+Documentation à consulter :
+  Memo_Sockets.pdf
+  man 7 socket
+  man 7 udp
+  crs::gethostbyname() --> man 3 gethostbyname
+  crs::socket()        --> man 2 socket
+  crs::bind()          --> man 2 bind
+  crs::close()         --> man 2 close
+  crs::recvfrom()      --> man 2 recvfrom
+  crs::ntoh_i32()      --> man 3 ntohl
+  crs::hton_i32()      --> man 3 htonl
+  crs::sendto()        --> man 2 sendto
+  man 1 ssh
+
+==============================================================================
+prog06_txt_bin_udp_server.cpp : Plusieurs sockets peuvent être surveillées
+                                simultanément dans un même programme
+                                (scrutation passive).
+
+Les deux serveurs UDP précédemment réalisés peuvent échanger du texte ou des
+données binaires mais chacun est spécialisé dans l'un ou l'autre de ces
+formats.
+Nous envisageons maintenant de réaliser un unique serveur UDP qui surveille
+deux sockets UDP à la fois : l'une sera dédiée aux échanges textuels et
+l'autre aux échanges binaires (bien entendu chacune d'elles sera attachée
+à un port distinct passé sur la ligne de commande).
+
+La difficulté vient du fait que l'opération de réception ``recvfrom'' est
+bloquante.
+Si par exemple le serveur est bloqué en attente d'une réception sur la socket
+dédiée au texte et qu'un client binaire le sollicite sur l'autre socket,
+alors le serveur ne réagira pas immédiatement à ce message binaire ; il devra
+attendre qu'une réception textuelle le débloque pour pouvoir s'intéresser à
+la socket dédiée à la communication binaire (et inversement).
+C'est ici que nous introduisons la notion de scrutation passive grâce à
+l'appel système ``select()'' : nous indiquons au système d'exploitation que
+plusieurs sockets sont susceptibles de nous fournir de l'information et
+celui-ci nous bloque jusqu'à ce que l'une (ou plusieurs) d'elles soit en
+mesure de nous délivrer une information.
+Il ne nous reste alors plus qu'à déterminer, parmi toutes les sockets
+surveillées, celle (ou celles) ayant provoqué le déblocage.
+
+Le code source du programme fourni doit être complété en s'inspirant largement
+de ce qui a déjà été fait dans les deux précédents serveurs UDP.
+En particulier, la création des deux sockets UDP (points {1} et {2}) et leur
+fermeture (point {3}) sont quasiment identiques aux serveurs UDP précédents
+(aux noms de variables près).
+La boucle de dialogue est en revanche modifiée pour introduire l'étape
+de scrutation passive.
+Il s'agit dans un premier temps de fabriquer un ``std::vector<SOCKET>''
+contenant les deux sockets à surveiller ; celui-ci sera transmis à
+``crs::select()'' (point {4}).
+À la sortie de cet appel bloquant, le vecteur transmis a été modifié et ne
+contient plus que les sockets qui sont prêtes à délivrer de l'information
+sans attendre.
+Il ne nous reste plus alors qu'à tester pour chacune de nos deux sockets
+(points {5} et {6}) si elle est toujours dans ce vecteur ; si c'est le cas,
+nous nous contentons d'invoquer la même séquence d'opération que dans le
+serveur spécialisé (textuel ou binaire).
+
+Vérifiez le bon fonctionnement de ce nouveau serveur en le sollicitant par
+de multiples clients textuels et binaires.
+Vous devez constater qu'il réagit de manière appropriée à la réception de
+requêtes textuelles ou binaires sans rien supposer quant à l'ordre d'arrivée
+de ces requêtes.
+
+Documentation à consulter :
+  Memo_Sockets.pdf
+  man 7 socket
+  man 7 udp
+  crs::socket()   --> man 2 socket
+  crs::bind()     --> man 2 bind
+  crs::close()    --> man 2 close
+  std::vector     --> http://en.cppreference.com/w/cpp/container/vector
+  crs::select()   --> man 2 select
+  crs::recvfrom() --> man 2 recvfrom
+  crs::ntoh_i32() --> man 3 ntohl
+  crs::hton_i32() --> man 3 htonl
+  crs::sendto()   --> man 2 sendto
+  man 1 ssh
+
+=============================================================================

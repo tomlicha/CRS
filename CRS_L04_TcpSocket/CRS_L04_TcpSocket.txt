@@ -1,0 +1,542 @@
+==============================================================================
+Communication réseau en TCP                     (Fabrice Harrouet, module CRS)
+==============================================================================
+
+Il s'agit d'une série d'exercices en rapport avec la communication entre
+des processus répartis sur différentes machines à travers des réseaux.
+Au cours de cette séance nous ne nous appuierons que sur le protocole TCP,
+afin d'en découvrir l'usage et d'en constater les caractéristiques.
+
+Chaque programme est volontairement très simple afin de se focaliser sur la
+découverte des services proposés sans être distrait par les détails annexes
+d'une quelconque application particulière.
+Il convient de traiter ces exercices tranquillement, en s'interrogeant à
+chaque fois sur le propos de la fonctionnalité particulière qui est mise en
+avant.
+Il ne sert strictement à rien d'enchaîner les exercices sans les comprendre
+en se contentant de :
+  ``ça compile et ça ne plante pas donc j'ai bon, je passe à la suite''
+
+La consultation de la documentation est très importante et fait partie
+intégrante du travail.
+Pour ceci vous disposez des pages de manuel indiquées à chaque exercice ainsi
+que des documents disponibles sur :
+  http://www.enib.fr/~harrouet/courses.html
+En particulier, le document ``Memo_Sockets.pdf'' devrait beaucoup vous guider
+puisqu'il donne les portions de code usuelles qui servent de briques de base
+pour les communications en réseau (créer des sockets, choisir un port,
+recevoir, envoyer...). Les exercices/exemples suivants ont d'ailleurs été
+conçus pour que vous réutilisiez facilement les informations du document en
+question.
+Le fichier d'entête ``crsUtils.hpp'' doit également être consulté très
+régulièrement puisqu'il fournit, au delà de quelques fonctionnalités
+utilitaires, la mise à disposition dans une forme facilitée pour les étudiants
+(limitation des pointeurs, des conversions de types, utilisation de chaînes
+et vecteurs C++, contrôle des échecs...) des appels et fonctionnalités
+systèmes que nous utiliserons.
+
+Vous êtes censés savoir refaire et réutiliser tous ces exercices lors des
+séances ultérieures ; n'hésitez donc pas à poser des questions lors de cette
+séance et à les refaire tout seul ensuite pour vous entraîner.
+
+==============================================================================
+prog01_txt_mono_tcp_server.cpp : Découverte de la structure minimale d'un
+                                 serveur TCP simpliste (version textuelle).
+
+Ce programme est un serveur dans le sens où il n'est pas à l'initiative
+des échanges d'information.
+Il attend d'être sollicité par la demande de connexion d'un client (a priori
+inconnu de lui) et, après acceptation de cette demande de connexion, le
+dialogue qui s'ensuit repose sur la connexion TCP ainsi établie.
+Il ne s'agit dans cet exemple que de simples messages textuels.
+
+Le programme serveur est lancé en choisissant sur sa ligne de commande un
+numéro de port (>1024, sinon il faut des privilèges sur la machine).
+En complétant le point {1} du programme fourni, vous allez créer une
+socket d'écoute TCP qui sera associée à ce numéro de port.
+Désormais, toute demande de connexion TCP à destination de ce port sur votre
+machine vous sera signalée et rendue disponible à travers cette socket.
+
+Dès qu'on accède à des ressources du système (ici la socket d'écoute), il
+convient de se poser la question de la libération de ces ressources.
+En complétant le point {2} du programme fourni, vous fermerez la socket
+d'écoute lorsqu'elle ne sera plus utile (à la fin du programme).
+nb : Dans cet exemple simpliste la fin du programme ne sera jamais atteinte
+     mais ce n'est pas grave, c'est tout de même un bon principe à suivre de
+     manière systématique.
+
+La partie active du programme est formée d'une première boucle consacrée à
+l'acceptation des connexions (point {3} du programme fourni).
+En effet, le protocole TCP étant un protocole connecté, il est nécessaire
+qu'une connexion soit établie entre les deux interlocuteurs avant que ceux-ci
+puisse s'échanger des informations utiles.
+La socket d'écoute d'un serveur TCP est exclusivement dédiée à ce rôle ; elle
+ne sert qu'à accepter les connexions (à l'initiative des clients) et ne
+permet pas d'échanger les informations utiles à l'application.
+Toutefois, cette opération d'acceptation d'une connexion, en plus de fournir
+les coordonnées du client (extraites de l'entête TCP/IP de la demande de
+connexion et rendues disponibles par le système d'exploitation), fait
+apparaître une nouvelle socket TCP : la socket de dialogue.
+Cette nouvelle socket correspond à la deuxième extrémité de la connexion TCP
+créée par le client.
+Désormais, le client et le serveur sont reliés par une même connexion TCP ;
+tout ce qui est envoyé à une extrémité est reçu de l'autre et réciproquement.
+L'acceptation de la connexion par la socket d'écoute est donc suivie d'une
+deuxième boucle imbriquée dans laquelle s'enchaînent requêtes et réponses
+(le dialogue entre le client et le serveur).
+
+Puisque nous venons de faire apparaître une nouvelle ressource du système
+(la socket de dialogue TCP) il convient une nouvelle fois de se poser la
+de sa libération.
+En complétant le point {4} du programme fourni, vous fermerez la socket
+de dialogue TCP lorsqu'elle ne sera plus utile (à la fin du dialogue avec
+le client).
+
+Le début de la boucle de dialogue consiste à attendre que le client nous
+envoie un message par la connexion TCP.
+En complétant le point {5} du programme fourni, votre programme se met
+en attente d'un tel message.
+Nous l'interpréterons comme une requête textuelle que nous afficherons.
+Veuillez noter que, puisque TCP est un protocole connecté, à tout moment
+l'autre interlocuteur peut fermer la connexion ; ceci provoquera alors
+l'événement fin-de-fichier (EOF) lors de la prochaine tentative de réception
+sur cette socket de dialogue, c'est à dire une réception de longueur nulle.
+Dans ce cas il nous suffit de quitter la boucle de dialogue avec le client,
+ce qui, après fermeture de notre socket de dialogue, nous renverra à l'étape
+d'acceptation de la prochaine connexion avec un nouveau client.
+
+Si nous avons effectivement reçu une requête, il n'y a plus alors qu'à
+compléter le point {6} du programme fourni afin de renvoyer une réponse
+(textuelle à nouveau ici) au client auquel nous sommes reliés par la socket
+de dialogue TCP.
+
+Pour tester ce programme, nous le lançons tout d'abord dans un terminal :
+  $ ./prog01_txt_mono_tcp_server 9876
+  host 'menthe23.enib.fr' waiting for a new connection on port '9876'...
+Notre programme nous rappelle le nom de notre de machine ainsi que le port
+que nous avons choisi arbitrairement sur sa ligne de commande (>1024).
+
+Dans un autre terminal nous utilisons le client générique nc :
+  $ nc menthe23 9876
+(bien entendu il faut adapter le nom de la machine et le port).
+Cette commande se connecte en TCP à la destination indiquée, puis se contente
+d'envoyer ce qu'on saisit au clavier dans cette connexion, et affiche ce
+qu'elle reçoit.
+Vous devriez donc constater que chaque saisie dans ce terminal provoque
+un affichage du texte saisi reçu sur votre serveur, puis une réponse formulée
+par votre serveur qui apparaît dans ce même terminal (celui de nc).
+Pour arrêter (brutalement) cette commande il suffit de saisir la combinaison
+de touches [Control]+[c] dans son terminal ; vous devriez alors constater que
+votre serveur détecte la fin-de-fichier sur cette connexion et se replace en
+attente d'une prochaine connexion TCP.
+Vous pouvez alors relancer la commande nc pour entreprendre un nouveau
+dialogue avec ce même serveur.
+Pour arrêter (brutalement) votre serveur il suffit de saisir la combinaison de
+touches [Control]+[c] dans son terminal.
+
+Puisque nous traitons de communication par réseau il est raisonnable de
+solliciter notre serveur depuis une autre machine (ce n'est pas obligatoire,
+nous venons de constater que notre machine peut se solliciter elle même).
+Pour éviter d'avoir à nous déplacer physiquement vers une autre machine,
+nous ouvrons un autre terminal et utilisons une session ssh (accès à distance
+à une autre machine).
+  $ ssh une_autre_machine
+  ******** <-- saisie de votre mot de passe
+  $ hostname
+  ........ <-- vous devez retrouver une_autre_machine
+  $ nc menthe23 9876
+La communication entre la commande nc et votre serveur doit également
+fonctionner ; votre serveur communique donc bien à travers le réseau.
+En particulier, vous devez constater que votre serveur dialogue bien avec la
+commande nc jouant le rôle de client TCP alors qu'il ignorait tout de
+celle-ci lors de son lancement (il dialogue simplement avec le client qui le
+sollicite).
+
+Documentation à consulter :
+  Memo_Sockets.pdf
+  man 7 socket
+  man 7 tcp
+  crs::socket() --> man 2 socket
+  crs::bind()   --> man 2 bind
+  crs::listen() --> man 2 listen
+  crs::close()  --> man 2 close
+  crs::accept() --> man 2 accept
+  crs::recv()   --> man 2 recv
+  crs::send()   --> man 2 send
+  man 1 nc
+  man 1 ssh
+
+==============================================================================
+prog02_txt_tcp_client.cpp : Établissement d'une connexion et dialogue
+                            à l'aide du protocole TCP (version textuelle).
+
+Il s'agit maintenant de remplacer le client générique nc par un client TCP
+que vous réaliserez vous même.
+Ce programme est un client dans le sens où c'est lui qui est à l'initiative
+de la prise de contact.
+Avant que tout échange d'information utile n'ait lieu avec le serveur TCP,
+il contacte ce dernier en lui transmettant une demande de connexion (qui sera
+prise en compte par l'opération ``accept()'' sur le serveur) ; ceci implique
+qu'il doit connaître à l'avance (par la ligne de commande ici) les
+coordonnées du serveur qu'il doit solliciter.
+Seulement une fois cette connexion TCP établie, le dialogue peut avoir lieu :
+des requêtes sont émises sur la connexion TCP et donnent lieu à la réception
+de réponses produites par le serveur.
+Il ne s'agit dans cet exemple que de simples messages textuels.
+
+Le programme client est lancé en précisant sur sa ligne de commande le nom
+de domaine et le numéro de port du serveur visé (celui-ci doit donc être
+lancé sur la machine indiquée et surveiller le port en question).
+En complétant le point {1} du programme fourni, vous devez obtenir l'adresse
+IP du serveur choisi en ligne de commande.
+En complétant le point {2} du programme fourni, vous allez créer une socket
+TCP qui sera connectée au serveur.
+
+Dès qu'on accède à des ressources du système (ici la socket), il convient de
+se poser la question de la libération de ces ressources.
+En complétant le point {3} du programme fourni, vous fermerez la socket
+lorsqu'elle ne sera plus utile (à la fin du programme).
+
+La partie active du programme est une boucle dans laquelle s'enchaînent
+requêtes et réponses.
+En complétant le point{4} du programme fourni, votre programme va envoyer
+sa requête au serveur via la connexion TCP.
+Cette requête n'est constituée que d'une ligne de texte préalablement
+saisie au clavier.
+
+Il n'y a plus qu'à compléter le point {5} du programme fourni afin de se
+placer en attente de la réponse produite par le serveur sur cette même
+connexion TCP.
+Nous l'interpréterons comme une réponse textuelle que nous afficherons.
+Veuillez noter que, puisque TCP est un protocole connecté, à tout moment
+l'autre interlocuteur peut fermer la connexion ; ceci provoquera alors
+l'événement fin-de-fichier (EOF) lors de la prochaine tentative de réception
+sur cette connexion, c'est à dire une réception de longueur nulle.
+Dans ce cas il nous suffit de quitter la boucle de dialogue avec le serveur,
+ce qui, après fermeture de notre connexion, terminera le programme.
+
+En l'état, votre programme client TCP doit pouvoir interagir avec votre
+programme serveur TCP.
+Pour le tester, nous lançons tout d'abord le serveur dans un terminal :
+  $ ./prog01_txt_mono_tcp_server 9876
+  host 'menthe23.enib.fr' waiting for a new connection on port '9876'...
+Notre serveur nous rappelle le nom de notre de machine ainsi que le port
+que nous avons choisi arbitrairement sur sa ligne de commande (>1024).
+Dans un autre terminal nous utilisons notre programme client :
+  $ ./prog02_txt_cpp_client menthe23 9876
+(bien entendu il faut adapter le nom de la machine et le port).
+Vous devriez constater un comportement similaire à ce que vous obteniez avec
+le client générique nc si ce n'est que votre programme client affiche un peu
+plus d'information que le simple contenu textuel des messages.
+Pour arrêter votre client vous pouvez simuler la fin-de-fichier (EOF) sur
+l'entrée standard en saisissant [Control]+[d] ; notre programme réagit alors
+en quittant sa boucle de dialogue.
+En revanche, en ce qui concerne votre serveur il faudra à nouveau avoir
+recours à la combinaison de touches [Control]+[c] pour provoquer son arrêt
+brutal.
+
+Une fois effectuée cette vérification minimale de la communication entre vos
+programmes client et serveur TCP, vous pouvez passer à des tests variés.
+En vous connectant via ssh (comme précédemment) sur d'autres machines,
+vous pourrez solliciter simultanément votre serveur par plusieurs clients
+depuis des machines variées.
+Constatez tout d'abord que, pour l'instant, ces multiples dialogues ne peuvent
+pas avoir lieu simultanément mais uniquement l'un après l'autre !
+Pour cela, arrêtez et relancez les divers clients et constatez la réaction du
+serveur et la progression des différents dialogues.
+Arrêtez également le serveur et constatez que cela provoque la terminaison
+des clients ; en effet, TCP est un protocole connecté, lorsqu'un interlocuteur
+ferme la connexion l'autre a connaissance de cet événement (très différent
+du protocole UDP).
+Vérifiez que lorsqu'un client tente de se connecter à un serveur qui n'est
+pas encore démarré sa demande de connexion échoue immédiatement (très
+différent du protocole UDP).
+Modifiez légèrement (et temporairement) votre programme client pour qu'il
+envoie sa requête en de multiples exemplaires (invoquez cinq ou six fois
+``send()'' à la suite) et constatez que votre serveur peut recevoir des
+requêtes tantôt séparées, tantôt concaténées (très différent du protocole
+UDP).
+
+À travers ces quelques essais vous avez vérifié les propriétés les plus
+courantes du protocole TCP :
+- une connexion relie les deux interlocuteurs (client et serveur) pendant
+  toute la durée du dialogue,
+- la déconnexion ne passe pas inaperçue du point de vue de l'autre
+  interlocuteur, les données échangées ne peuvent pas être silencieusement
+  perdues,
+- la connexion forme un flux ininterrompu qui ne permet pas de distinguer
+  à coup sûr des envois successifs (on peut les recevoir en bloc),
+- la structure du serveur nécessitera d'être adaptée (prochaine étape) afin
+  d'envisager de mener des dialogues avec plusieurs clients simultanément.
+
+Documentation à consulter :
+  Memo_Sockets.pdf
+  man 7 socket
+  man 7 tcp
+  crs::gethostbyname() --> man 3 gethostbyname
+  crs::socket()        --> man 2 socket
+  crs::connect()       --> man 2 connect
+  crs::close()         --> man 2 close
+  crs::send()          --> man 2 send
+  crs::recv()          --> man 2 recv
+  man 1 ssh
+
+==============================================================================
+prog03_txt_tcp_server.cpp : Un serveur TCP à base de threads peut rendre
+                            service à plusieurs clients simultanément
+                            (version textuelle).
+
+En conclusion de l'étape précédente nous constations que la version simpliste
+du serveur TCP que nous avions réalisé ne permettait pas d'entretenir des
+dialogues avec plusieurs clients simultanément.
+Nous nous proposons, dans cette nouvelle version, de corriger ce défaut en
+utilisant des threads.
+nb : cette solution à base de threads n'est pas la meilleure qui soit
+     puisqu'elle ne permet pas de supporter une très forte charge (des
+     milliers de clients) ; il existe d'autres solutions plus robustes mais
+     celle-ci a l'avantage d'être très simple à réaliser et est suffisante
+     pour la compréhension et l'expérimentation.
+
+Dans notre première version de serveur TCP nous distinguions très nettement
+le rôle de chacune de ces deux boucles imbriquées : la boucle externe
+servait exclusivement à accepter les connexions détectées sur la socket
+d'écoute alors que la boucle interne servait exclusivement au dialogue avec
+le client à travers la socket de dialogue TCP obtenue lors de l'acceptation.
+L'architecture de notre nouveau serveur TCP repose bien entendu sur la
+même distinction entre ces deux rôles.
+Le programme principal (la fonction ``main()'') restera très similaire
+et consistera principalement en la boucle d'acceptation des connexions.
+La nouveauté de cette version repose sur le fait que l'exploitation de
+chaque socket de dialogue ainsi obtenue n'aura plus lieu juste à la suite
+mais se déroulera dans une exécution parallèle : un thread.
+Les threads seront étudiés en détail ultérieurement mais pour l'instant la
+seule chose utile à comprendre à ce sujet c'est que le lancement d'un thread
+revient à faire comme si nous appelions une fonction et à poursuivre le
+programme principal sans attendre que cette fonction ait fini son travail : les
+exécutions ont lieu en parallèle.
+nb : puisque nous n'attendrons jamais la terminaison de ces threads
+     (chacun se terminera quand bon lui semblera) nous indiquons qu'ils
+     sont dans l'état dit ``détaché''.
+Chaque thread que nous lançons ainsi reçoit en paramètre la socket de
+dialogue TCP qui vient juste d'apparaître lors de l'acceptation d'une
+connexion.
+La fonction exécutée dans ce thread consiste simplement à réaliser le
+même dialogue que dans le serveur précédent (échanges de requêtes/réponses
+textuelles puis fermeture de la socket de dialogue).
+À tout moment, dans le serveur à base de threads, nous avons le programme
+principal qui se tient prêt à accepter une éventuelle nouvelle connexion d'un
+client et autant de threads qu'il y a de clients déjà connectés.
+Chacun de ces threads passe son temps à attendre que son client spécifique lui
+envoie une nouvelle requête sur la connexion TCP qu'ils ont en commun et
+se contente d'y répondre.
+Puisque l'exécution de chaque thread est indépendante, le fait que certains
+soient bloqués sur une opération de réception n'empêche pas du tout les
+autres de progresser dans leur dialogue s'ils ont reçu une requête ; c'est
+justement le but que nous recherchions à travers la mise en oeuvre de cette
+nouvelle architecture de serveur TCP.
+Bien entendu, lorsqu'un dialogue spécifique à un client doit se terminer,
+la fonction de dialogue se termine et le thread qui l'exécutait disparaît.
+
+Pour compléter les points {1}, {2} et {3} du programme fourni, il suffit
+de reprendre exactement ce qui avait été réalisé dans la version précédente
+du serveur TCP.
+Il s'agit en effet de la création de la socket d'écoute TCP, de sa fermeture
+en fin de programme et de la boucle d'acceptation des nouvelles connexions
+qui, comme expliqué plus haut, restent inchangées.
+
+En complétant le point {4} du programme fourni, nous créons un thread détaché
+qui exécutera la fonction ``dialogThread()'' (définie plus haut dans le code) 
+à laquelle nous passons en paramètre la socket de dialogue TCP obtenue juste
+avant lors de l'acceptation d'une nouvelle connexion.
+
+Puisque c'est la fonction ``dialogThread()'' qui se chargera de
+l'exploitation de la socket de dialogue, nous nous empressons (comme à notre
+habitude désormais) d'envisager immédiatement sa fermeture.
+Celle-ci prend place au point {5}, à la fin de cette fonction.
+Remarquez la construction try/catch qui précède cette étape de fermeture et
+qui englobe toute la partie active du dialogue : il s'agit du mécanisme
+d'interception des exceptions (anomalies d'exécutions).
+En effet, puisque nous souhaitons servir plusieurs clients simultanément,
+il est inacceptable qu'une anomalie survenant lors du dialogue avec un
+client particulier termine brutalement le serveur et déconnecte ainsi les
+autres client qui, eux, n'ont rien à voir avec cette anomalie !
+Avec la construction try/catch ainsi formulée, si une anomalie survient
+elle sera signalée mais la fonction ``dialogThread()'' se poursuivra
+par l'étape de fermeture de la connexion ; dans tous les cas, qu'il y ait
+une anomalie ou que le dialogue se termine normalement, l'étape de fermeture
+de la connexion TCP sera bien réalisée.
+
+Dans la partie active du dialogue il reste à compléter la réception des
+requêtes (point {6}) et l'envoi d'une réponse (point {7}) exactement comme
+nous l'avions fait dans la version précédente de notre serveur TCP.
+
+En l'état, vous pouvez reprendre toutes les phases de test de l'étape
+précédente.
+En particulier, vous devez vérifier que le défaut majeur que nous constations
+dans la version précédente (pas de simultanéité des dialogues avec les
+multiples clients) est désormais corrigé.
+Vérifiez également que les déconnexions intempestives des clients ne
+perturbent pas le serveur.
+
+En résumé, la modification effectuée dans le code n'en concerne que la
+structure (la boucle interne de dialogue est remplacée par un thread qui
+exécute une fonction dédiée au dialogue) ; les étapes élémentaires restent
+strictement identiques à ce que nous connaissions dans la version précédente.
+À travers cette reformulation de notre serveur TCP, nous obtenons une
+architecture simple et facilement réutilisable dans des contextes
+applicatifs variés (tant que la charge de travail ne devient pas critique).
+
+Documentation à consulter :
+  Memo_Sockets.pdf
+  man 7 socket
+  man 7 tcp
+  crs::socket() --> man 2 socket
+  crs::bind()   --> man 2 bind
+  crs::listen() --> man 2 listen
+  crs::close()  --> man 2 close
+  crs::accept() --> man 2 accept
+  std::thread   --> http://en.cppreference.com/w/cpp/thread
+  crs::recv()   --> man 2 recv
+  crs::send()   --> man 2 send
+  man 1 ssh
+
+==============================================================================
+prog04_bin_tcp_server.cpp
+prog05_bin_tcp_client.cpp : Lorsque des machines s'échangent des données non
+                            textuelles (binaires), il faut s'assurer que ces
+                            séquences d'octets sont bien interprétées de la
+                            même façon une fois placées dans la mémoire
+                            (processeurs BIG-ENDIAN ou LITTLE-ENDIAN).
+
+Les enjeux et précautions concernant le thème des échanges de données binaires
+ont déjà été exposés dans le sujet consacré à la communication avec le
+protocole UDP.
+Bien entendu, le problème et la solution restent les mêmes quel que soit le
+mode de communication envisagé ; tout ce qui avait été discuté dans le cadre
+des échanges par UDP reste valable pour la communication par TCP.
+
+Le code source du programme ``prog04_bin_tcp_server.cpp'' doit être complété
+en s'inspirant largement de ce qui a déjà été fait dans
+``prog03_txt_tcp_server.cpp'' ; il s'agit en effet d'un serveur TCP.
+En particulier, la création de la socket d'écoute TCP (point {1}), sa
+fermeture (point {2}), l'acceptation des nouvelles connexions (point {3}),
+le démarrage du thread de dialogue (point {4}) et la fermeture de la socket
+de dialogue (point {5}) sont strictement identiques à la version textuelle.
+La différence avec la version textuelle tient dans la boucle de dialogue
+qui ne suppose désormais plus avoir affaire à du texte mais à des données
+binaires (des entiers de 32 bits ici).
+En complétant les points {6}, {7}, {8} et {9} de ce programme, vous devez
+réaliser toutes les opérations de réception, conversion d'ordre, et envoi
+nécessaires à l'échange des informations numériques (recevoir un entier
+de 32 bits et renvoyer son double et son carré).
+
+De la même façon, le code source du programme ``prog05_bin_tcp_client.cpp''
+doit être complété en s'inspirant largement de ce qui a déjà été fait dans
+``prog02_txt_tcp_client.cpp'' ; il s'agit en effet d'un client TCP.
+En particulier, la détermination de l'adresse IP du serveur (point {1}), la
+création de la connexion TCP (point {2}) et sa fermeture (point {3}) sont
+strictement identiques à la version textuelle.
+La différence avec la version textuelle tient dans la boucle de dialogue
+qui ne suppose désormais plus avoir affaire à du texte (à l'exception de
+la saisie au clavier, pour des raisons de facilité ici) mais à des données
+binaires (des entiers de 32 bits ici).
+En complétant les points {4}, {5}, {6} et {7} de ce programme, vous devez
+réaliser toutes les opérations de conversion d'ordre, envoi et réception
+nécessaires à l'échange des informations numériques (envoyer un entier
+de 32 bits et en recevoir deux en réponse).
+
+Désormais, ces deux nouveaux programmes serveur et client TCP doivent pouvoir
+échanger leurs informations binaires ; testez leur fonctionnement, aussi bien
+en local qu'à distance depuis plusieurs machines.
+Observez avec attention les valeurs numériques échangées afin de vérifier
+qu'elle sont bien interprétées correctement ; vous pouvez notamment ``oublier
+volontairement'' les conversions d'ordre dans un seul des deux programmes
+(serveur ou client) afin de constater les valeurs numériques aberrantes
+utilisées.
+nb: ici en salle de Labo, le parc de machines est homogène donc si toutes
+les opérations de conversion d'ordre sont oubliées l'application fonctionne
+correctement en apparence ; ce ne serait toutefois plus le cas si nous devions
+communiquer avec des machines à l'architecture inconnue !
+
+Documentation à consulter :
+  Memo_Sockets.pdf
+  man 7 socket
+  man 7 tcp
+  crs::gethostbyname() --> man 3 gethostbyname
+  crs::socket()        --> man 2 socket
+  crs::connect()       --> man 2 connect
+  crs::bind()          --> man 2 bind
+  crs::listen()        --> man 2 listen
+  crs::close()         --> man 2 close
+  crs::accept()        --> man 2 accept
+  std::thread          --> http://en.cppreference.com/w/cpp/thread
+  crs::recv()          --> man 2 recv
+  crs::ntoh_i32()      --> man 3 ntohl
+  crs::hton_i32()      --> man 3 htonl
+  crs::send()          --> man 2 send
+  man 1 ssh
+
+==============================================================================
+prog06_txt_bin_tcp_server.cpp : Plusieurs sockets d'écoute peuvent être
+                                surveillées simultanément dans un même
+                                programme (scrutation passive).
+
+Les deux serveurs TCP précédemment réalisés peuvent échanger du texte ou des
+données binaires mais chacun est spécialisé dans l'un ou l'autre de ces
+formats.
+Nous envisageons maintenant de réaliser un unique serveur TCP qui surveille
+la survenue de nouvelles connexions sur deux sockets d'écoute TCP à la fois :
+l'une sera dédiée aux échanges textuels et l'autre aux échanges binaires
+(bien entendu chacune d'elles sera attachée à un port distinct passé sur la
+ligne de commande).
+
+La solution adoptée ici est la même que celle qui a déjà été utilisée pour le
+problème similaire dans le sujet consacré à la communication avec le protocole
+UDP : une scrutation passive à l'aide de l'appel système ``select()''.
+Ceci illustre le fait que ce procédé est très général et s'applique à des
+modes de communication divers.
+
+Le code source du programme fourni doit être complété en s'inspirant largement
+de ce qui a déjà été fait dans les deux précédents serveurs TCP.
+En particulier, la création des deux sockets d'écoute TCP (points {1} et {2})
+et leur fermeture (point {3}) sont quasiment identiques aux serveurs TCP
+précédents (aux noms de variables près).
+La boucle d'acceptation est en revanche modifiée pour introduire l'étape
+de scrutation passive.
+Il s'agit dans un premier temps de fabriquer un ``std::vector<SOCKET>''
+contenant les deux sockets d'écoute à surveiller ; celui-ci sera transmis à
+``crs::select()'' (point {4}).
+À la sortie de cet appel bloquant, le vecteur transmis a été modifié et ne
+contient plus que les sockets d'écoutes qui sont prêtes à accepter de
+nouvelles connexions sans attendre.
+Il ne nous reste plus alors qu'à tester pour chacune de nos deux sockets
+(points {5} et {6}) si elle est toujours dans ce vecteur ; si c'est le cas,
+après acceptation de la connexion TCP, il suffit de lancer un thread qui
+exécutera le dialogue textuel ou binaire dans l'une ou l'autre des fonctions
+dédiées (points {7} et {8}).
+
+Vérifiez le bon fonctionnement de ce nouveau serveur en le sollicitant par
+de multiples clients textuels et binaires.
+Vous devez constater qu'il réagit de manière appropriée à la réception de
+requêtes textuelles ou binaires sans rien supposer quant à l'ordre d'arrivée
+des demandes de connexion.
+
+Documentation à consulter :
+  Memo_Sockets.pdf
+  man 7 socket
+  man 7 tcp
+  crs::socket()   --> man 2 socket
+  crs::bind()     --> man 2 bind
+  crs::listen()   --> man 2 listen
+  crs::close()    --> man 2 close
+  std::vector     --> http://en.cppreference.com/w/cpp/container/vector
+  crs::select()   --> man 2 select
+  crs::accept()   --> man 2 accept
+  std::thread     --> http://en.cppreference.com/w/cpp/thread
+  crs::recv()     --> man 2 recv
+  crs::ntoh_i32() --> man 3 ntohl
+  crs::hton_i32() --> man 3 htonl
+  crs::send()     --> man 2 send
+  man 1 ssh
+
+==============================================================================

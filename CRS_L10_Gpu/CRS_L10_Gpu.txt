@@ -1,0 +1,524 @@
+==============================================================================
+Accélération de calculs sur GPU                 (Fabrice Harrouet, module CRS)
+==============================================================================
+
+Il s'agit d'une série d'exercices en rapport avec l'utilisation d'une
+carte graphique pour en exploiter les multiples unités de calcul.
+Au cours de cette séance nous mettrons en évidence les caractéristiques
+essentielles de cette technologie ainsi que quelques écueils qui limitent les
+performances et envisagerons des démarches pour les éviter.
+
+Chaque programme est volontairement très simple afin de se focaliser sur la
+découverte des services proposés sans être distrait par les détails annexes
+d'une quelconque application particulière.
+Il convient de traiter ces exercices tranquillement, en s'interrogeant à
+chaque fois sur le propos de la fonctionnalité particulière qui est mise en
+avant.
+Il ne sert strictement à rien d'enchaîner les exercices sans les comprendre
+en se contentant de :
+  ``ça compile et ça ne plante pas donc j'ai bon, je passe à la suite''
+
+Le fichier d'entête ``crsGpu.hpp'' doit être consulté très régulièrement
+puisqu'il fournit la mise à disposition dans une forme facilitée pour les
+étudiants (dissimulation des détails de l'API) des fonctionnalités de mise en
+oeuvre des Compute-Shaders d'OpenGL.
+Le fichier d'entête ``crsUtils.hpp'' doit également être consulté très
+régulièrement puisqu'il fournit, au delà de quelques fonctionnalités
+utilitaires, la mise à disposition dans une forme facilitée pour les étudiants
+(limitation des pointeurs, des conversions de types, utilisation de chaînes
+et vecteurs C++, contrôle des échecs...) des appels et fonctionnalités
+systèmes que nous utiliserons.
+
+Vous êtes censés savoir refaire et réutiliser tous ces exercices lors des
+séances ultérieures ; n'hésitez donc pas à poser des questions lors de cette
+séance et à les refaire tout seul ensuite pour vous entraîner.
+
+==============================================================================
+prog00_hello.cpp : La mise en oeuvre d'un GPU est très différente de ce à quoi
+                   nous sommes habitués sur CPU.
+
+Ce premier programme est complet ; il s'agit d'un exemple illustratif du
+principe de fonctionnement d'un GPU (carte graphique) lorsqu'on veut
+l'exploiter pour effectuer des calculs généralistes (GP-GPU, vocabulaire).
+Vous n'aurez pas à le compléter mais il vous faudra l'étudier très
+attentivement en suivant les explications.
+
+Il existe différentes technologies pour le GP-GPU.
+Le précurseur en la matière est l'environnement Nvidia CUDA : il s'agit de la
+référence en termes de performances puisqu'il offre un contrôle très fin du
+procédé mais il a l'inconvénient d'être spécifique au matériel de la marque.
+L'environnement OpenCL correspond quant à lui à un effort de normalisation
+pour offrir des fonctionnalités similaires sur une plus grande variété de
+matériel au prix d'un contrôle moins fin.
+La technologie OpenGL, qui est à l'origine dédiée au rendu graphique 3D,
+intègre depuis sa version 4.3 (en 2012) les Compute-Shaders : il s'agit de
+rendre accessibles les fonctionnalités GP-GPU dans le contexte du rendu
+graphique afin de calculer sur le GPU les données qui lui serviront lors du
+rendu.
+Il en existe d'autres :
+  https://en.wikipedia.org/wiki/
+          General-purpose_computing_on_graphics_processing_units
+Quelle que soit la technologie choisie, elle repose toujours sur les mêmes
+principes qui sont directement imposés par le fonctionnement de l'architecture
+matérielle sous-jacente.
+Ici, dans le cadre de ces labos à l'ENIB, nous utiliserons les Compute-Shaders
+d'OpenGL.
+Il ne s'agit que d'un choix de facilité d'organisation puisque les machines
+qui sont équipées des cartes graphiques adaptées disposent d'un pilote de
+périphérique qui propose déjà cette technologie ; il n'y a rien de plus à
+installer, ce qui facilite le déploiement.
+Il n'est pas question ici de passer en revue les détails de l'API retenue (qui
+sont forcément différents pour une autre) c'est pourquoi le fichier utilitaire
+``crsGpu.hpp'' les encapsule dans des objets de plus haut niveau dont l'usage
+est suffisant pour la compréhension des principes généraux.
+Les fonctionnalités rendues accessibles sont très limitées mais suffisent
+largement à la compréhension des éléments essentiels.
+
+Commençons par le début du programme fourni.
+Tout d'abord, la fonction utilitaire ``crs::Gpu::showProperties()'' rend
+visibles les quelques propriétés liées aux Compute-Shaders qui ont été
+détectées à l'initialisation du GPU.
+Nous préparons également un paquet de données sur lesquelles nous avons
+l'intention de faire travailler le GPU.
+Il ne s'agit ici que de répéter une séquence d'entiers pour obtenir un vecteur
+assez grand ; ce n'est qu'un prétexte sans réelle utilité.
+
+Vient ensuite le choix de la disposition à adopter pour effectuer le
+traitement ; ceci est très lié à l'architecture matérielle.
+Il faut imaginer un GPU comme constitué de plusieurs composants
+multi-processeurs ; chacun d'eux est en effet capable d'exécuter
+quasi-simultanément un grand nombre de traitements identiques.
+Une vision simplifié serait d'imaginer un grand nombre de threads exécutant
+tous la même instruction au même moment mais sur des données distinctes pour
+chacun (modèle SIMT, vocabulaire, très différent du multi-CPU).
+Un problème global doit alors être découpé en groupes (ou blocs) ; chaque
+groupe est confié à un tel composant multi-processeur.
+Plusieurs composants travaillent simultanément sur des groupes distincts et
+passent à un groupe suivant dès qu'ils en ont terminé un ; ainsi l'ensemble
+des groupes constitutifs du problème sera globalement traité par l'ensemble
+des composants multi-processeurs.
+Plus le GPU dispose de tels composants, et plus ceux-ci peuvent exécuter
+de traitements simultanés, plus massive sera la parallélisation du traitement,
+ce qui doit conduire à un temps d'exécution très court par rapport à une
+approche séquentielle.
+Le choix de la taille des groupes et leur nombre est une question très
+délicate qui, pour obtenir les performances optimales sur un matériel et un
+problème donnés, nécessite de nombreuses mesures ; il n'existe pas de réglage
+qui soit optimal pour tous les matériels et tous les problèmes ni de règles
+automatiques pour les déterminer.
+Nous nous contentons dans le cas présent de l'usage des fonctions utilitaires
+``crs::Gpu::chooseWorkGroupSize()'' et ``crs::Gpu::chooseWorkGroupCount()''.
+Elles s'appuient sur les propriétés du GPU pour fournir des choix qui sont
+connus pour donner des résultats généralement satisfaisants (mais pas
+forcément optimaux) dans la plupart des cas.
+
+Le code du traitement qui devra être exécuté sur le GPU est généré par
+l'application (une simple chaîne de caractères) et compilé à la volée.
+Les fonctionnalités utilitaires fournies ici lui ajoutent un préambule qui
+définit des macros et des variables qui simplifieront l'écriture dans le
+cadre de ces exercices.
+Nous voyons notamment qu'une variable ``data'' est déclarée comme un tableau
+d'entiers ; elle est associée au buffer numéroté ``0'' et notre traitement
+pourra y lire et y écrire.
+Si plusieurs buffers sont utilisés, ils doivent être associés à des numéros
+différents.
+Un buffer est un simple bloc de données situé dans la mémoire du GPU (pas
+celle de la machine hôte !).
+Un paramètre est également transmis au lancement du programme ; il est
+numéroté ``0'' et est composé de deux entiers (type ``ivec2'').
+Si plusieurs paramètres sont utilisés, ils doivent être associés à des numéros
+différents.
+Nous extrayons de ce paramètre deux constantes globales ayant des noms plus
+explicites.
+Vient alors, sous la forme d'une fonction ``main()'' sans arguments ni
+résultat, l'algorithme du traitement.
+Il faut imaginer que chacun des ``groupSize'' éléments des ``groupCount''
+groupes est un thread qui exécute cet algorithme.
+Chacun d'eux est désigné de manière unique par la constante ``globalId'' dont
+la valeur sera comprise entre ``0'' et ``GRID_SIZE-1'' (``GRID_SIZE'' vaut
+``groupSize*groupCount'').
+S'il y a plus de ``GRID_SIZE'' éléments à traiter dans le problème il est
+nécessaire que tous ces threads fassent plusieurs itérations.
+Puisque les threads travaillent sur des indices contigus, ils doivent
+progresser de ``GRID_SIZE'' à chaque nouvelle itération.
+Bien entendu, il faut veiller à ne pas dépasser le dernier élément du
+problème (paramètre ``count'' ici).
+nb: les avantages de ce procédé sont décrits dans le document
+    https://devblogs.nvidia.com/parallelforall/
+            cuda-pro-tip-write-flexible-kernels-grid-stride-loops/
+Le traitement retenu ici est trivial : nous nous contentons d'ajouter à chaque
+élément du buffer une valeur qui dépend de l'indice de calcul et du paramètre
+``modulo''.
+Si tous les threads effectuent cela à leurs indices respectifs, alors tout
+le buffer aura été traité.
+nb: la syntaxe utilisée dans le code de ce traitement (langage GLSL) est bien
+    entendu spécifique à la technologie Compute-Shaders d'OpenGL ; elle serait
+    différente pour une autre technologie mais les concepts (buffers,
+    paramètres, groupes, identifiants...) seraient similaires et elle reste
+    généralement proche de celle du langage C.
+
+Dans le code, nous avons fait référence à un buffer censé être présent dans
+la mémoire du GPU.
+Nous le créons alors en nous assurant que sa taille en octets est suffisante
+pour contenir toutes les données applicatives que nous avons produites au
+début du programme.
+
+Il est désormais envisageable de remplir le contenu de ce buffer avec les
+données en question.
+Il s'agit de transférer, à travers le bus PCI-express qui relie le GPU à la
+carte-mère de la machine, le contenu du vecteur en mémoire principale (de la
+machine hôte) vers le buffer dans la mémoire du GPU.
+
+Maintenant que les données de notre problème ont été recopiées dans le buffer
+du GPU, nous pouvons demander l'exécution du programme sur GPU.
+Avant cela, nous devons néanmoins lui indiquer que le buffer qui est numéroté
+``0'' dans son code source correspond à celui que nous venons de remplir, et
+donner les valeurs constitutives du paramètre qui est numéroté ``0'' dans son
+code source.
+Les méthodes ``param_XXX()'' de ``GpuProgram'' décrivent la variété des
+formes que peuvent prendre les paramètres transmis : essentiellement des
+réels et des entiers signés ou non par paquets de un à quatre éléments (ceci
+est spécifique aux Compute-Shaders d'OpenGL).
+
+L'exécution du programme sur le GPU a eu pour effet de modifier le contenu du
+buffer que nous lui avons indiqué ; nous pouvons dorénavant le récupérer.
+Il s'agit de transférer, à travers le bus PCI-express qui relie le GPU à la
+carte-mère de la machine, le contenu du buffer dans la mémoire du GPU vers le
+vecteur en mémoire principale (de la machine hôte).
+
+Désormais, les données produites par le GPU sont utilisables par la machine
+hôte ; nous nous contentons ici de les afficher sous forme de texte.
+
+Pour tester ce programme, il suffit de le lancer sans plus d'arguments.
+Vous devriez voir apparaître dans le terminal les propriétés du GPU en matière
+de Compute-Shaders, le code source complet (avec son préambule) du programme 
+exécuté par le GPU, et les données produites par son exécution.
+L'examen attentif du préambule devrait vous informer sur les facilités
+introduites pour exprimer les notions les plus communément utilisées
+(dimensions, usage des buffers, des paramètres ...).
+
+Assurez vous d'avoir bien compris le rôle de toutes les étapes importantes du
+procédé qui ont été décrites ici :
+- fabrication de programmes pour le GPU, organisés en groupes et exécutés en
+  parallèle par de multiples threads désignés par un identifiant entier,
+- création de buffers sur le GPU,
+- transferts de données tableau-hôte --> buffer-GPU,
+- exécution des programmes sur GPU en associant les buffers et en transmettant
+  des paramètres,
+- transferts de données buffer-GPU --> tableau-hôte.
+Ce sont en effet les éléments incontournables qui sont à la base de toute
+application qui exploite un GPU.
+
+Documentation à consulter :
+  GLSL --> https://www.opengl.org/registry/doc/GLSLangSpec.4.50.pdf
+
+==============================================================================
+prog01_compute.cpp : Le très grand nombre d'unités de calcul d'un GPU offrent
+                     une très grande puissance de calcul.
+
+La première réalisation que nous entreprenons vise à exploiter les très
+nombreuses unités de calcul du GPU pour un traitement purement calculatoire.
+Nous utilisons comme prétexte une simulation de Monte-Carlo pour estimer la
+valeur de PI.
+Comme illustré sur l'exemple introductif de :
+  https://en.wikipedia.org/wiki/Monte_Carlo_method
+il s'agit de tirer un très grand nombre de points aléatoires dans un carré de
+côté 1 et de compter ceux qui tombent dans le quart de disque inscrit dans ce
+carré.
+Puisque l'aire de ce quart de disque vaut PI/4 et que l'aire du carré vaut 1,
+nous en déduisons que PI peut être estimé par :
+  4 * nombre_de_points_dans_le_quart_de_disque / nombre_de_points_total
+Ce traitement repose sur un très grand nombre de calculs répétitifs mais ne
+manipule que très peu de données ; aucune donnée n'est lue (les points sont
+générés aléatoirement), le résultat est un simple compte des points retenus.
+Le programme fourni propose une implémentation sur multi-CPU qui servira à
+comparer les performances avec la version à produire sur GPU.
+Pour compléter ce programme, il faudra vous inspirer fortement de l'exemple
+introductif ``prog00_hello.cpp''.
+
+Les points {1}, {2} et {3} du programme fourni doivent être complétés pour
+rédiger le code source du programme destiné au GPU.
+Il faut savoir que le GPU ne dispose pas de générateur pseudo-aléatoire ; la
+fonction ``rnd()'' en réalise alors un très simple.
+Seulement un tel générateur nécessite une graine initiale qui détermine la
+séquence pseudo-aléatoire qui sera générée ; puisque chaque thread du GPU est
+indépendant et doit disposer de sa propre séquence pseudo-aléatoire, il faut
+que chacun dispose d'une graine différente.
+La fonction ``makeRndSeed()'' fabrique une telle graine à partir de
+l'identifiant ``globalId'' qui est différent pour chaque thread et de quatre
+valeurs aléatoires fournies en paramètre par l'hôte.
+Le calcul ne consomme aucune donnée en entrée et se termine par l'inscription
+dans un buffer du compte des points que chacun des threads à tiré dans le
+quart de disque.
+
+Les points {4}, {5} et {6} du programme fourni doivent être complétés pour
+créer le buffer attendu par le programme sur GPU, lancer l'exécution de ce
+programme avec les paramètres qu'il requiert et récupérer le contenu du buffer
+afin d'exploiter le résultat sur la machine hôte.
+Remarquez que dans cet exemple il n'a été nécessaire d'effectuer aucun
+transfert de donnée pour alimenter le programme ; les paramètres suffisent,
+seule la récupération des résultats nécessite un transfert.
+
+Pour tester ce programme, il suffit de le lancer sans plus d'arguments.
+Vous devriez voir apparaître dans le terminal l'estimation de PI obtenue
+(avec son écart à la valeur connue) et la durée d'exécution.
+Si vous le relancez en ajoutant le mot ``cpu'' sur sa ligne de commande, la
+version multi-GPU sera également exécutée ; vous pourrez alors comparer les
+performances de ces deux implémentations.
+Vous devriez constater que sur un tel problème le GPU offre de meilleures
+performances que les multiples CPUs.
+La différence est certainement encore plus remarquable lorsqu'on tire
+beaucoup plus de points en ajoutant le mot ``big'' sur la ligne de commande.
+En effet, même si nous transférons ``GRID_SIZE'' entiers pour récupérer les
+comptes à la fin du calcul, cette quantité est négligeable devant le très
+grand nombre points considérés ; les très nombreuses unités de calcul du GPU
+sont donc pleinement utilisées pendant l'essentiel du temps.
+
+Documentation à consulter :
+  GLSL --> https://www.opengl.org/registry/doc/GLSLangSpec.4.50.pdf
+
+==============================================================================
+prog02_transfer.cpp : Le transfert de données entre hôte et GPU a un coût
+                      considérable.
+
+Nous envisageons maintenant un scénario tout à fait opposé au précédent : il
+s'agit de traiter un gros volume de données en n'effectuant que peu de calcul.
+Nous utilisons comme prétexte la combinaison linéaire de deux très longs
+vecteurs ; il s'agit de calculer
+  Z[i] = xFactor * X[i] + yFactor * Y[i]
+pour tous les éléments ``i'' de ces vecteurs.
+Pour compléter ce programme, il faudra vous inspirer fortement de l'exemple
+introductif ``prog00_hello.cpp''.
+
+Les points {1}, {2} et {3} du programme fourni doivent être complétés pour
+rédiger le code source du programme destiné au GPU.
+Il n'y a ici aucune difficulté ; l'algorithme s'exprime de manière triviale.
+
+Les points {4}, {5}, {6} et {7} du programme fourni doivent être complétés
+pour créer les buffers attendus par le programme sur GPU, transférer les
+données d'entrée vers le GPU, lancer l'exécution de ce programme avec les
+paramètres qu'il requiert et récupérer le résultat.
+Remarquez que dans cet exemple seuls les contenus des vecteurs ``X'' et ``Y''
+doivent être transférés vers le GPU pour alimenter le programme (``Z'' ne
+sera pas lu par le programme).
+De manière complémentaire, seul le contenu du vecteur ``Z'' sera récupéré
+depuis le GPU (``X'' et ``Y'' ne sont pas modifiés par le programme).
+
+Pour tester ce programme, il suffit de le lancer sans plus d'arguments.
+Vous devriez voir apparaître dans le terminal sa durée d'exécution.
+Si vous le relancez en ajoutant le mot ``cpu'' sur sa ligne de commande, la
+version multi-GPU sera également exécutée ; vous pourrez alors comparer les
+performances de ces deux implémentations.
+Vous devriez constater que sur un tel problème le GPU offre cette fois de bien
+plus mauvaises performances que les multiples CPUs.
+La différence s'accentue lorsqu'on augmente la dimension des vecteurs en
+ajoutant le mot ``big'' sur la ligne de commande.
+
+Si vous commentez maintenant, de manière temporaire, les transferts de données
+(points {5} et {7}) et que vous reprenez l'expérimentation, vous devriez cette
+fois constater que les performances redeviennent meilleures pour le GPU (mais
+les valeurs numériques obtenues ne sont bien évidemment plus comparables).
+Ceci illustre bien le fait que sur un tel problème, le GPU passe l'essentiel
+de son temps à transférer les données par le bus PCI-express ; la grande
+puissance de calcul du GPU n'apporte aucun avantage dans ce cas.
+Cette observation permet de mettre en évidence une limitation très importante
+dans la mise en oeuvre d'un GPU : si des traitements doivent avoir lieu de
+manière répétée, nous avons tout intérêt à conserver les données dans la
+mémoire du GPU.
+Si, au contraire, des transferts de données avec l'hôte doivent avoir lieu
+entre les multiples étapes du traitement il est fort probable que les
+performances soient finalement très décevantes.
+
+Documentation à consulter :
+  GLSL --> https://www.opengl.org/registry/doc/GLSLangSpec.4.50.pdf
+
+==============================================================================
+prog03_AOS.cpp : La disposition de multiples données composées sous la forme
+                 Array-Of-Structures est la plus intuitive.
+
+Forts de l'observation précédente, nous abordons maintenant un scénario dans
+lequel les données seront effectivement placées une fois pour toutes dans
+la mémoire du GPU.
+Il s'agira d'intégrer les équations de la dynamique par pas de temps
+successifs afin de simuler les trajectoires d'une multitude de points soumis
+à une accélération.
+Les caractéristiques de ces points (position, vitesse, couleur) seront
+transmises au GPU une fois pour toutes en début de simulation.
+Elles seront actualisées à de multiples reprises sur le GPU.
+Leurs valeurs finales ne seront récupérées sur l'hôte qu'à l'issue de la
+simulation.
+
+Puisqu'un point est constitué de plusieurs caractéristiques (position,
+vitesse, couleur) il est d'usage de regrouper ces dernières dans une structure
+de donnée (``Point'') afin d'avoir la commodité de désigner un tel point
+par une unique variable regroupant tous ses champs.
+L'ensemble de données du problème est donc représenté par un très grand
+tableau dont chaque élément est une structure ``Point'' ; il s'agit de la
+disposition ``Array-Of-Structures'' (AOS, vocabulaire).
+Puisqu'il est également possible dans une programme sur GPU de définir une
+telle structure, il nous suffira de transférer directement les octets
+constitutifs de ce tableau de points vers un buffer du GPU ; le programme
+accédera alors aux divers champs des structures contenues dans ce buffer.
+
+Les points {1}, {2} et {3} du programme fourni doivent être complétés pour
+rédiger le code source d'un premier programme destiné au GPU.
+Ce programme se charge d'actualiser la position et la vitesse de tous les
+points en leur faisant subir une accélération pendant un pas de temps et
+en rebondissant sur les limites du terrain.
+Il n'y a ici aucune difficulté ; l'algorithme s'exprime de manière triviale.
+
+Les points {4}, {5} et {6} du programme fourni doivent être complétés pour
+rédiger le code source d'un second programme destiné au GPU.
+Ce programme se charge d'attribuer une couleur à chaque point en fonction
+de sa position et de sa vitesse ; il sera appelé dix fois moins souvent
+que le précédent.
+Il n'y a ici aucune difficulté ; l'algorithme s'exprime de manière triviale.
+nb: aucun affichage n'aura lieu ici, il ne s'agit que d'un prétexte pour
+    calculer et pour alimenter la discussion dans la prochaine étape du sujet.
+
+Les points {7}, {8}, {9}, {10} et {11} du programme fourni doivent être
+complétés pour créer le buffer attendu par les programmes sur GPU, transférer
+les données d'entrée vers le GPU, lancer en boucle l'exécution de ces
+programmes avec les paramètres qu'ils requièrent et récupérer le résultat.
+Remarquez que dans cet exemple les transferts entre la machine hôte et le GPU 
+n'ont lieu qu'une fois (respectivement au début et à la fin) alors que les
+programmes sont invoqués à de nombreuses reprises.
+
+Pour tester ce programme, il suffit de le lancer sans plus d'arguments.
+Vous devriez voir apparaître dans le terminal sa durée d'exécution ainsi
+qu'une performance exprimée en millions de points traités par seconde.
+Si vous le relancez en ajoutant le mot ``cpu'' sur sa ligne de commande, la
+version multi-GPU sera également exécutée ; vous pourrez alors comparer les
+performances de ces deux implémentations.
+Vous devriez constater que, malgré le fait qu'il n'y ait pas de transferts de
+données répétés entre le GPU et la machine hôte, le GPU offre encore des
+performances bien moindres que celles des multiples CPUs.
+En revanche, cet écart de performances se réduit et va jusqu'à s'inverser
+lorsqu'on augmente le nombre de points en ajoutant le mot ``big'' sur la ligne
+de commande.
+
+À y regarder de plus près, nous constatons que les performances du GPU
+diminuent peu lorsque le volume de données augmente, alors qu'elles
+s'écroulent dans le cas de l'implémentation multi-CPU.
+Ceci vient du fait que le débit entre la mémoire d'un GPU et ses composants
+multi-processeurs est bien plus élevé que le débit entre les CPUs et la
+mémoire principale de la machine hôte.
+C'est justement une des propriétés optimisées lors de la conception d'un GPU.
+Au contraire, les CPUs s'appuient énormément sur l'usage de mémoires caches
+(rapides) pour contourner le problème de la relative lenteur d'accès à la
+mémoire principale.
+Lorsque le volume total des données accédées tient dans les caches des CPUs,
+alors leurs performances restent très bonnes.
+En revanche, lorsque la capacité des caches est excédée, le temps d'accès aux
+données en mémoire principale devient soudainement prépondérant devant le
+temps de calcul effectif des CPUs.
+
+Les GPUs modernes utilisent aussi un mécanisme de cache mais celui-ci n'est
+pas aussi sensible que dans le cas des CPUs.
+Le très bon débit mémoire des GPUs est lié au fait que les accès sont
+contraints par des règles strictes ; la prochaine étape du sujet traitera
+de cet aspect.
+
+Documentation à consulter :
+  GLSL --> https://www.opengl.org/registry/doc/GLSLangSpec.4.50.pdf
+
+==============================================================================
+prog04_SOA.cpp : La disposition de multiples données composées sous la forme
+                 Structure-Of-Arrays est moins intuitive mais plus efficace.
+
+Dans l'étape introductive de ce sujet, nous proposions une vision simplifiée
+du fonctionnement d'un composant multi-processeurs d'un GPU : un grand nombre
+de threads exécutant tous la même instruction au même moment mais sur des
+données distinctes pour chacun.
+Nous avons vu dans les exemples précédents que l'accès aux données d'un
+buffer par un programme sur GPU est généralement indexé selon l'identifiant
+``globalId'' du thread concerné.
+Par conséquent, si des threads d'identifiants contigus exécutent simultanément
+une instruction d'accès à un buffer, alors il s'agit probablement d'un accès à
+des éléments d'indices contigus dans ce buffer.
+Le fonctionnement de la mémoire d'un GPU est justement optimisé pour effectuer
+des accès par blocs ; l'hypothèse est que des threads d'identifiants contigus
+ont simultanément besoin de ce bloc de données contiguës.
+Dans ces conditions un unique accès à la mémoire satisfera de multiples
+threads ; on parle alors d'accès ``coalescent'' (vocabulaire).
+Si, en revanche, les threads utilisent des indices désordonnés pour accéder
+aux éléments d'un buffer, il faudra accéder séquentiellement à plusieurs de
+ces blocs pour tous les satisfaire.
+De plus, dans chacun de ces blocs accédés il n'y aura que très peu de données
+réellement utilisées par les threads ; c'est un gaspillage du débit mémoire !
+
+Pour revenir à notre problème de simulation de la dynamique d'un ensemble de
+points, rappelons que nous avions choisi la disposition
+``Array-Of-Structures'' pour les données constitutives de ces points.
+Lorsque, dans un composant multi-processeurs du GPU, des threads
+d'identifiants contigus souhaitent accéder à un champ particulier du point
+qu'ils traitent, les champs en question dans les multiples points désignés ne
+sont pas contigus mais séparés les uns des autres par de multiples autres
+champs de la structure qui ne sont pas utiles dans l'immédiat.
+Un accès mémoire par bloc va donc englober beaucoup de données inutiles et
+il faudra plusieurs des ces accès par blocs pour satisfaire un ensemble de
+threads d'identifiants contigus.
+Nous nous retrouvons finalement dans la même situation que si les accès aux
+éléments du buffer utilisaient des indices désordonnés.
+
+En vue de limiter ce gaspillage du débit mémoire, il nous faut repenser la
+disposition de nos données en recourant à la forme ``Structure-Of-Arrays''
+(SOA, vocabulaire).
+Il s'agit de créer un buffer pour chaque champ de la structure ; chacun des
+buffers contiendra autant d'éléments qu'il y a de points dans le problème.
+De cette façon, lorsque des threads d'identifiants contigus accéderont à
+un champ particulier du point qu'ils traitent, les champs en question seront
+également contigus dans le buffer concerné et un unique accès par bloc sera
+suffisant et pleinement utilisé par tous ces threads.
+nb: la stratégie que nous suivons depuis le début et qui consiste à faire
+    itérer les threads du GPU selon un pas de ``GRID_SIZE'' est
+    particulièrement bien adaptée à cette disposition.
+    Les avantages de ce procédé sont décrits dans le document
+    https://devblogs.nvidia.com/parallelforall/
+            cuda-pro-tip-write-flexible-kernels-grid-stride-loops/
+
+Le programme que nous réalisons ici est très similaire au précédent ; seule la
+disposition des données en mémoire est différente.
+Les consignes sont les mêmes pour compléter les points de {1} à {11}.
+La différence la plus marquante tient dans la multiplicité des buffers.
+Remarquez que dans le premier des deux programmes, celui qui actualise la
+position et la vitesse, il n'est même pas fait mention des buffers qui
+concernent la couleur (ils ne sont donc pas accédés inutilement).
+Ceux-ci ne sont utilisés que dans le second programme pour y inscrire de
+nouvelles couleurs alors que les buffers de position et de vitesse ne sont
+que consultés.
+
+Dans ces nouvelles conditions vous pouvez reprendre les mêmes mesures que dans
+l'étape précédente.
+Vous devriez constater une très nette amélioration des performances délivrées
+par le GPU qui deviennent meilleures que celles des multiples CPUs.
+Cela confirme l'importance prépondérante du choix de la disposition des
+données lorsqu'on met en oeuvre un GPU.
+Remarquez également que cette disposition bénéficie aussi, mais dans une
+moindre mesure, à l'implémentation sur multiples CPUs.
+L'explication tient dans une raison différente mais néanmoins légèrement
+similaire : les lignes de caches d'un CPU sont parfaitement remplies par les
+champs des points qu'il traitera successivement.
+
+Cette découverte de la mise en oeuvre d'un GPU visait à présenter les
+caractéristiques essentielles de cette technologie ainsi que quelques écueils
+qui risquent de brider les performances d'une réalisation.
+Nous n'avons traité ici que de problèmes triviaux, mais les facteurs limitants
+en performance qui ont été évoqués laissent entrevoir le fait que cette
+solution n'est malheureusement pas adaptée à une grande variété de problèmes.
+De nombreux autres points mériteraient encore d'être abordés :
+- le dimensionnement des groupes pour masquer la latence des accès mémoire,
+- les divergences dans les flots d'exécution,
+- l'utilisation de la mémoire partagée d'un composant multi-processeurs,
+- les opérations atomiques et les barrières de synchronisation,
+- la communication au sein des ``warps'',
+- l'utilisation de plusieurs flots de commandes asynchrones pour les
+  transferts et les calculs,
+- ...
+Une autre fois peut-être ;^)
+
+Documentation à consulter :
+  GLSL --> https://www.opengl.org/registry/doc/GLSLangSpec.4.50.pdf
+  http://docs.nvidia.com/cuda/pdf/CUDA_C_Best_Practices_Guide.pdf
+
+==============================================================================
